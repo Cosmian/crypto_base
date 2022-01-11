@@ -191,6 +191,7 @@ impl PartialEq for FF1Crypto {
 
 /// `RebasedInput` gives the representation of the text string to encode in a
 /// new integer base
+#[derive(Default)]
 struct RebasedInput {
     /// The number of characters in alphabet
     /// For example, 10 for the alphabet "0123456789"
@@ -209,19 +210,6 @@ struct RebasedInput {
     /// Mapping between orignal char representation and the integer new
     /// representation
     mapping: HashMap<char, u8>,
-}
-
-impl Default for RebasedInput {
-    fn default() -> Self {
-        Self {
-            radix: 0,
-            input: Default::default(),
-            original_chars: Default::default(),
-            rebased_chars_original_indexes: Default::default(),
-            excluded_chars_indexes: Default::default(),
-            mapping: Default::default(),
-        }
-    }
 }
 
 ///
@@ -494,7 +482,7 @@ impl FF1Crypto {
     /// alphabet. The difference with `encrypt_string` is the left padding that
     /// occurs. Indeed, we want to deal with very small input digit string (like
     /// number on less than 6 characters) and respect the security threshold
-    /// given in NIST 800 38G (radix^minlen>1_000_000). This padding will be
+    /// given in NIST 800 38G (`radix^minlen>1_000_000`). This padding will be
     /// done according to the given input type (the generic `T`). For example,
     /// for a `u32` type, the left-zeroes-padding will pad the input string
     /// until 9 characters (not more because of the max u32 possible value).
@@ -766,7 +754,7 @@ mod tests {
 
         // Length == 0
         let pt = "0";
-        let ct = FF1Crypto::encrypt_digit_string::<u32>(&key, &[], &pt)?;
+        let ct = FF1Crypto::encrypt_digit_string::<u32>(&key, &[], pt)?;
         let cleartext = FF1Crypto::decrypt_digits_string::<u32>(&key, &[], ct.as_str())?;
         assert_eq!(cleartext, pt);
 
@@ -784,25 +772,25 @@ mod tests {
 
         // Length >= 9
         let pt = "4294967295"; // 2^32 - 1
-        let ct = FF1Crypto::encrypt_digit_string::<u32>(&key, &[], &pt)?;
+        let ct = FF1Crypto::encrypt_digit_string::<u32>(&key, &[], pt)?;
         let cleartext = FF1Crypto::decrypt_digits_string::<u32>(&key, &[], ct.as_str())?;
         assert_eq!(cleartext, pt);
 
         // Length >= 9, splitted input with right string prepended with 0
         let pt = "1111111111000222222";
-        let ct = FF1Crypto::encrypt_digit_string::<u32>(&key, &[], &pt)?;
+        let ct = FF1Crypto::encrypt_digit_string::<u32>(&key, &[], pt)?;
         let cleartext = FF1Crypto::decrypt_digits_string::<u32>(&key, &[], ct.as_str())?;
         assert_eq!(cleartext, pt);
 
         // Length >= 9 with non-digit character. Needs to respect input format
         let pt = "1234-1234-1234-1234-1234";
-        let ct = FF1Crypto::encrypt_string(&key, &[], "1234567890", &pt)?;
+        let ct = FF1Crypto::encrypt_string(&key, &[], "1234567890", pt)?;
         let cleartext = FF1Crypto::decrypt_string(&key, &[], "1234567890", ct.as_str())?;
         assert_eq!(cleartext, pt);
 
         // Non-digits characters
         let pt = "aaaaaaaaaaaaaa";
-        let ct = FF1Crypto::encrypt_digit_string::<u32>(&key, &[], &pt);
+        let ct = FF1Crypto::encrypt_digit_string::<u32>(&key, &[], pt);
         assert!(ct.is_err());
         Ok(())
     }
@@ -812,12 +800,12 @@ mod tests {
         let key = vec![0; KEY_LENGTH];
 
         let pt = "4294967295"; // 2^32 - 1
-        let ct = FF1Crypto::encrypt_digit_string::<u32>(&key, &[], &pt)?;
+        let ct = FF1Crypto::encrypt_digit_string::<u32>(&key, &[], pt)?;
         let cleartext = FF1Crypto::decrypt_digits_string::<u32>(&key, &[], ct.as_str())?;
         assert_eq!(cleartext, pt);
 
         let pt = "-4294967295"; // too big
-        let ct = FF1Crypto::encrypt_digit_string::<u32>(&key, &[], &pt)?;
+        let ct = FF1Crypto::encrypt_digit_string::<u32>(&key, &[], pt)?;
         let cleartext = FF1Crypto::decrypt_digits_string::<u32>(&key, &[], ct.as_str())?;
         assert_eq!(cleartext, pt);
 

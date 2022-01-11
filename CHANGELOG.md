@@ -9,8 +9,8 @@ All notable changes to this project will be documented in this file.
 - Enable CI on github (lint, build and tests)
 ### Changed
 - Add: use github `retry_panic`
+- Discard libsodium as default implementation choice
 ### Fixed
 ### Removed
 - Remove logging functions to keep simple dependencies
-- Remove: libsodium legacy
 ---

@@ -21,7 +21,9 @@ pub trait Nonce: Into<Vec<u8>> + Clone + PartialEq + Display + Debug + Sync + Se
 
     fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self>;
     fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self>;
+    #[must_use]
     fn increment(&self, increment: usize) -> Self;
+    #[must_use]
     fn xor(&self, b2: &[u8]) -> Self;
     fn as_bytes(&self) -> Vec<u8>;
 }
@@ -60,7 +62,7 @@ pub trait SymmetricCrypto: Send + Sync {
     /// encrypted result.
     ///
     /// The total length of the encrypted data is the message length +
-    /// MAC_LENGTH
+    /// `MAC_LENGTH`
     ///
     /// This function encrypts then tag: it can also be used as a MAC, with an
     /// empty message.

@@ -4,7 +4,7 @@ use rand_distr::StandardNormal;
 use rand_hc::Hc128Rng;
 
 /// A Cryptographically secure pseudo-random number generator
-/// based on HC128 that generates BigUint on a uniform distribution
+/// based on HC128 that generates `BigUint` on a uniform distribution
 pub struct Uniform {
     rng: Hc128Rng,
 }
@@ -64,7 +64,7 @@ const SIGMA_128: i128 = std::i128::MAX >> 3;
 const SIGMA_128_F64: f64 = SIGMA_128 as f64;
 
 /// A Cryptographically secure pseudo-random number generator
-/// based on HC128 that generates BigInt on a normal/Gaussian distribution
+/// based on HC128 that generates `BigInt` on a normal/Gaussian distribution
 pub struct Normal {
     rng: Hc128Rng,
     mean: BigInt,

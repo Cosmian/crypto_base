@@ -1,6 +1,8 @@
 pub mod abe;
 #[cfg(test)]
 pub mod abe_tests;
+#[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
+pub mod aes_hash_mmo;
 pub mod asymmetric;
 pub mod brc_c_prf_hi;
 pub mod entropy;

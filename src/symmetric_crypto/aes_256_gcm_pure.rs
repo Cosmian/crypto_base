@@ -305,7 +305,7 @@ impl Default for CsRng {
 /// the encrypted message, as well as a tag authenticating both the confidential
 /// message and non-confidential data, are put into the encrypted result.
 ///
-/// The total length of the encrypted data is the message length + MAC_LENGTH
+/// The total length of the encrypted data is the message length + `MAC_LENGTH`
 pub fn encrypt_combined(
     key: &Key,
     bytes: &[u8],

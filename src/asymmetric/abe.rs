@@ -318,7 +318,7 @@ where
         data: &[u8],
     ) -> anyhow::Result<Vec<u8>> {
         self.scheme
-            .decrypt(&T::CipherText::from_bytes(data)?, &decryption_key)?
+            .decrypt(&T::CipherText::from_bytes(data)?, decryption_key)?
             .ok_or_else(|| anyhow::anyhow!("Invalid decryption"))?
             .as_bytes()
             .map_err(|e| anyhow::anyhow!(e.to_string()))

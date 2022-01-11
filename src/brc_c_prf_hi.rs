@@ -118,10 +118,10 @@ impl TryFrom<&[u8]> for Trapdoor {
     }
 }
 
-/// Generate a Trapdoor for the given range ['min_c, `max_c`] index.
+/// Generate a Trapdoor for the given range [`min_c`, `max_c`] index.
 ///
 /// The trapdoor will allow the generation of all pseudo-random values
-/// seeded by `k` from index 'min_c' to `max_c`both included
+/// seeded by `k` from index `min_c` to `max_c` both included
 /// Return the minimal key list needed to compute the output
 ///
 /// e.g. trapdoor(0b0000, 0b0110, key(.), 4) will return the 3 nodes [.]

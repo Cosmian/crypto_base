@@ -231,7 +231,7 @@ pub fn get_header_and_data(encrypted_data: &[u8]) -> anyhow::Result<(Vec<u8>, Ve
     Ok((header.into(), data.into()))
 }
 
-/// User_decryption_key
+/// `User_decryption_key`
 pub fn decrypt_header(private_key: &[u8], encrypted_header: &[u8]) -> anyhow::Result<Hdr> {
     trace!("Starting header decryption");
     let abe = build_abe(encrypted_header)?;
