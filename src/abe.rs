@@ -57,7 +57,8 @@ pub fn generate_user_decryption_key(
     Ok(decryption_key.to_string())
 }
 
-/// Generate a delegation decryption key for the given master key and access policy
+/// Generate a delegation decryption key for the given master key and access
+/// policy
 pub fn generate_delegation_key(
     delegation_key: &[u8],
     user_decryption_key: &str,

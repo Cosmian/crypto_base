@@ -2,7 +2,6 @@
 name = "cosmian_crypto_base"
 version = "0.1.0"
 authors = ["Bruno Grieder <bruno.grieder@cosmian.com>"]
-build = "build.rs"
 edition = "2018"
 
 [lib]
@@ -25,6 +24,7 @@ hkdf = "0.11.0"
 itertools = "0.10"
 num-bigint = { version = "0.4", features = ["rand", "serde"] }
 num-traits = "0.2"
+retry_panic = { git="https://github.com/Cosmian/retry_panic" }
 rand = "0.8"
 rand_core = { version = "0.5", features = ["getrandom"] }
 rand_distr = "0.4"
@@ -33,16 +33,10 @@ sha2 = "0.9.3"
 sha3 = "0.9"
 tracing = "0.1"
 
-[features]
-default = ["libsodium"]
-libsodium = []
+[dev-dependencies]
 
 [target.'cfg(all(not(target_arch = "wasm32"), not(windows)))'.dependencies]
 cupid = "0.6"
 
 [target.'cfg(all(not(target_arch = "wasm32"), not(windows)))'.build-dependencies]
 bindgen = "0.59"
-
-[target.'cfg(all(not(target_arch = "wasm32"), not(windows)))'.dev-dependencies]
-retry_panic = { path = "./retry_panic" }
-test_utils = { path = "../../../test_utils" }

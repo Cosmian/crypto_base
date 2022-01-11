@@ -1,7 +1,5 @@
 This resource implements primitives which are useful for other resources
 
-- libsodium_bindings: rust bindings for lib sodium 1.18 which provides many crypto primitives, in particular around the Curve 25519 and ShaSha
-- aes_256_gcm: an api to use AES 256 GCM (which calls libsodium)
 - primes: routines to extract prime numbers up to 2^400
 - cs_prng: A cryptographically secure pseudo random generator that generates Big Int(s)
 - brc_cprf: BRC, a constrained PRF (see below)

@@ -696,7 +696,6 @@ impl Default for CsRng {
 mod tests {
     use rand::{thread_rng, Rng};
     use rand_distr::Alphanumeric;
-    use test_utils::log_init;
 
     use super::*;
 
@@ -763,7 +762,6 @@ mod tests {
 
     #[test]
     fn fpe_ff1_digits_encryption() -> anyhow::Result<()> {
-        log_init("debug");
         let key = vec![0; KEY_LENGTH];
 
         // Length == 0
@@ -811,7 +809,6 @@ mod tests {
 
     #[test]
     fn fpe_ff1_limit_cases() -> anyhow::Result<()> {
-        log_init("debug");
         let key = vec![0; KEY_LENGTH];
 
         let pt = "4294967295"; // 2^32 - 1

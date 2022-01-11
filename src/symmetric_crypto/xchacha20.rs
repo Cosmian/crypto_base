@@ -301,9 +301,6 @@ impl SymmetricCrypto for XChacha20Crypto {
 
 #[cfg(test)]
 mod tests {
-
-    use test_utils::log_init;
-
     use super::{Nonce, SymmetricCrypto, XChacha20Crypto, KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH};
     use crate::symmetric_crypto::Nonce as _;
 
@@ -343,7 +340,6 @@ mod tests {
 
     #[test]
     fn test_encryption_decryption_xchacha20() {
-        log_init("info,xchacha20=debug");
         let crypto = XChacha20Crypto::new();
         let key = crypto.generate_key();
         let bytes = crypto.generate_random_bytes(8192);
@@ -361,7 +357,6 @@ mod tests {
 
     #[test]
     fn test_encryption_decryption_xchacha20_chunks() {
-        log_init("info,xchacha20=debug");
         let crypto = XChacha20Crypto::new();
         let key = crypto.generate_key();
         let bytes = crypto.generate_random_bytes(10000);

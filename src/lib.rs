@@ -1,7 +1,6 @@
 pub mod abe;
 #[cfg(test)]
 pub mod abe_tests;
-pub mod aes_hash_mmo;
 pub mod asymmetric;
 pub mod brc_c_prf_hi;
 pub mod entropy;
