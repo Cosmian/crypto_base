@@ -119,7 +119,7 @@ impl AesMmo {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "libsodium"))]
 pub(crate) mod tests {
     use std::time::Instant;
 

@@ -9,7 +9,7 @@ use std::{
 };
 
 use aes::Aes256;
-use fpe::ff1::{FlexibleNumeralString, FF1};
+use cosmian_fpe::ff1::{FlexibleNumeralString, FF1};
 use itertools::Itertools;
 use num_traits::Bounded;
 use rand::{RngCore, SeedableRng};
