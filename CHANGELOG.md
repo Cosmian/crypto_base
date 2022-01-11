@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Add: use github `retry_panic`
 - Discard libsodium as default implementation choice
+- FPE use Cosmian fork crate
 ### Fixed
 ### Removed
 - Remove logging functions to keep simple dependencies

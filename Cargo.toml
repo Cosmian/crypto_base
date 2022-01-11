@@ -16,7 +16,7 @@ aes = "0.7"
 aes-gcm = "0.9"
 anyhow = {package = "eyre", version = "0.6.0"}
 curve25519-dalek = "3.2"
-fpe = "0.5"
+fpe = {git = "https://github.com/Cosmian/fpe", branch = "feature/increase_feistel_rounds_number"}
 # specify the js feature for the WASM target
 getrandom = {version = "0.2", features = ["js"]}
 hex = "0.4"
