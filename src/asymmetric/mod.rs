@@ -3,7 +3,6 @@
 // #[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
 // pub mod x25519_sodium;
 
-pub mod abe;
 pub mod ristretto;
 
 use std::{convert::TryFrom, fmt::Display, vec::Vec};

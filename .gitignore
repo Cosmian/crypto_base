@@ -1,4 +1,4 @@
 pkg/
-.cargo_check
-target
+.cargo_check/
+target/
 Cargo.lock

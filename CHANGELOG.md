@@ -8,10 +8,11 @@ All notable changes to this project will be documented in this file.
 - Original source from Cosmian server
 - Enable CI on github (lint, build and tests)
 ### Changed
-- Add: use github `retry_panic`
+- Use `retry_panic` as a Github dependency
 - Discard libsodium as default implementation choice
 - FPE use Cosmian fork crate
 ### Fixed
 ### Removed
 - Remove logging functions to keep simple dependencies
+- Move ABE helper to ABE crate
 ---

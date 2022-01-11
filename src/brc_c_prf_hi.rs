@@ -440,8 +440,8 @@ pub(crate) mod tests {
 
     #[derive(Clone)]
     struct TreeNode {
-        level: u8,
-        c: usize,
+        _level: u8,
+        _c: usize,
         k: [u8; 32],
         _0: Option<Box<TreeNode>>,
         _1: Option<Box<TreeNode>>,
@@ -457,8 +457,8 @@ pub(crate) mod tests {
         // );
         if level == 0 {
             let n = TreeNode {
-                level,
-                c,
+                _level: level,
+                _c: c,
                 k: *k,
                 _0: None,
                 _1: None,
@@ -467,8 +467,8 @@ pub(crate) mod tests {
             return n
         }
         TreeNode {
-            level,
-            c,
+            _level: level,
+            _c: c,
             k: *k,
             _0: Some(Box::new(generate_tree(c << 1, &g0(k), level - 1, leaves))),
             _1: Some(Box::new(generate_tree(
@@ -489,8 +489,8 @@ pub(crate) mod tests {
         let zero_tree = generate_tree(0, &g0(&k), level - 1, &mut ref_leaves);
         let one_tree = generate_tree(1, &g1(&k), level - 1, &mut ref_leaves);
         let _root_node = TreeNode {
-            level,
-            c: 0,
+            _level: level,
+            _c: 0,
             k,
             _0: Some(Box::new(zero_tree)),
             _1: Some(Box::new(one_tree)),
