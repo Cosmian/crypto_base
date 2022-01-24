@@ -262,6 +262,7 @@ impl AsymmetricCrypto for X25519Crypto {
     type KeyPair = X25519KeyPair;
     type KeygenParam = ();
 
+    /// The plain English description of the scheme
     #[must_use]
     fn new() -> Self {
         Self {
@@ -269,29 +270,36 @@ impl AsymmetricCrypto for X25519Crypto {
         }
     }
 
-    fn new_attrs(_attrs: &[u32]) -> Self {
-        X25519Crypto::new()
-    }
-
+    /// The plain English description of the scheme
     fn description(&self) -> String {
         "Ristretto X25519".to_string()
     }
 
+    /// Generate a key pair
     fn generate_key_pair(&self, _: Self::KeygenParam) -> anyhow::Result<Self::KeyPair> {
         let rng = &mut *self.rng.lock().expect("a mutex lock failed");
         Ok(X25519KeyPair::new(rng))
     }
 
-    fn generate_symmetric_key<S: SymmetricCrypto>(
-        &self,
-        public_key: &<Self::KeyPair as KeyPair>::PublicKey,
-    ) -> anyhow::Result<(S::Key, Vec<u8>)> {
+    /// Generate a symmetric key which is appropriate for asymmetric encryption
+    /// in the case of an hybrid encryption scheme
+    fn generate_symmetric_key<S: SymmetricCrypto>(&self) -> anyhow::Result<S::Key> {
         let bytes: Vec<u8> = self.generate_random_bytes(S::Key::LENGTH);
         let key = S::generate_key_from_rnd(&bytes)?;
-        let bytes = self.encrypt(public_key, &key.clone().into())?;
-        Ok((key, bytes))
+        Ok(key)
     }
 
+    /// Encrypt a symmetric key used in an hybrid encryption case.
+    /// In most cases, this is the same as the encrypt method
+    fn encrypt_symmetric_key<S: SymmetricCrypto>(
+        &self,
+        public_key: &<Self::KeyPair as KeyPair>::PublicKey,
+        symmetric_key: &S::Key,
+    ) -> anyhow::Result<Vec<u8>> {
+        self.encrypt(public_key, &symmetric_key.as_bytes())
+    }
+
+    /// Decrypt a symmetric key used in an hybrid encryption scheme
     fn decrypt_symmetric_key<S: SymmetricCrypto>(
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
@@ -300,6 +308,8 @@ impl AsymmetricCrypto for X25519Crypto {
         S::Key::parse(self.decrypt(private_key, data)?)
     }
 
+    /// A utility function to generate random bytes from an uniform distribution
+    /// using a cryptographically secure RNG
     fn generate_random_bytes(&self, len: usize) -> Vec<u8> {
         let rng = &mut *self.rng.lock().expect("a mutex lock failed");
         let mut bytes = vec![0_u8; len];
@@ -307,16 +317,18 @@ impl AsymmetricCrypto for X25519Crypto {
         bytes
     }
 
+    /// The encrypted message length
     fn encrypted_message_length(&self, clear_text_message_length: usize) -> usize {
         clear_text_message_length + ECIES_ENCRYPTION_OVERHEAD
     }
 
+    /// Encrypt a message using ECIES
+    /// https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme
     fn encrypt(
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
         data: &[u8],
     ) -> anyhow::Result<Vec<u8>> {
-        // Implements ECIES: https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme
         let rng = &mut *self.rng.lock().expect("a mutex lock failed");
         let ephemeral_keypair = X25519KeyPair::new(rng);
         let sym_key_bytes = Self::sym_key_from_public_key(&ephemeral_keypair, public_key)?;
@@ -332,6 +344,7 @@ impl AsymmetricCrypto for X25519Crypto {
         Ok(result)
     }
 
+    /// The decrypted message length
     fn clear_text_message_length(encrypted_message_length: usize) -> usize {
         if encrypted_message_length <= ECIES_ENCRYPTION_OVERHEAD {
             0
@@ -340,12 +353,13 @@ impl AsymmetricCrypto for X25519Crypto {
         }
     }
 
+    /// Decrypt a message using ECIES
+    /// https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme
     fn decrypt(
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         data: &[u8],
     ) -> anyhow::Result<Vec<u8>> {
-        // Implements ECIES: https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme
         if data.len() < ECIES_ENCRYPTION_OVERHEAD {
             anyhow::bail!("decryption failed: message is too short");
         }
@@ -450,14 +464,19 @@ mod test {
         let key_pair = crypto.generate_key_pair(()).unwrap();
 
         let sym_key = crypto
-            .generate_symmetric_key::<aes_256_gcm_pure::Aes256GcmCrypto>(key_pair.public_key())
+            .generate_symmetric_key::<aes_256_gcm_pure::Aes256GcmCrypto>()
             .unwrap();
-        let encrypted = sym_key.1;
+        let enc_sym_key = crypto
+            .encrypt_symmetric_key::<aes_256_gcm_pure::Aes256GcmCrypto>(
+                key_pair.public_key(),
+                &sym_key,
+            )
+            .unwrap();
         let decrypted_key = crypto.decrypt_symmetric_key::<aes_256_gcm_pure::Aes256GcmCrypto>(
             &key_pair.private_key,
-            &encrypted,
+            &enc_sym_key,
         );
         println!("decrypted_key: {:?}", decrypted_key);
-        assert_eq!(sym_key.0, decrypted_key.unwrap());
+        assert_eq!(sym_key, decrypted_key.unwrap());
     }
 }

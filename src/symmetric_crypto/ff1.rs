@@ -18,7 +18,7 @@ use tracing::trace;
 
 use super::SymmetricCrypto;
 
-pub const RECOMMANDED_THRESHOLD: usize = 1_000_000;
+pub const RECOMMENDED_THRESHOLD: usize = 1_000_000;
 pub const KEY_LENGTH: usize = 32;
 pub const NONCE_LENGTH: usize = 0;
 pub const MAC_LENGTH: usize = 0;
@@ -252,11 +252,11 @@ impl RebasedInput {
         // Check if FPE is usable (in a security point of view, verifying the
         // threshold as suggested in NIST standard https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-38G.pdf)
         anyhow::ensure!(
-            alphabet.len() ^ stripped_input.len() < RECOMMANDED_THRESHOLD,
+            alphabet.len() ^ stripped_input.len() < RECOMMENDED_THRESHOLD,
             "Given alphabet length ({}), plaintext is too short. Plaintext length should be at \
              least {}",
             alphabet.len(),
-            (RECOMMANDED_THRESHOLD as f32).log(alphabet.len() as f32)
+            (RECOMMENDED_THRESHOLD as f32).log(alphabet.len() as f32)
         );
 
         // Fill the mapping between original representation ("ABCDEFG...") and
@@ -363,13 +363,6 @@ impl RebasedInput {
 /// base (base 10 for example in case of digit string)
 impl FF1Crypto {
     pub const KEY_LENGTH: usize = KEY_LENGTH;
-
-    #[must_use]
-    pub fn new() -> FF1Crypto {
-        FF1Crypto {
-            rng: Mutex::new(CsRng::new()),
-        }
-    }
 
     pub fn encrypt_u16(
         key: &[u8],
@@ -590,6 +583,13 @@ impl SymmetricCrypto for FF1Crypto {
 
     const MAC_LENGTH: usize = MAC_LENGTH;
 
+    #[must_use]
+    fn new() -> Self {
+        FF1Crypto {
+            rng: Mutex::new(CsRng::new()),
+        }
+    }
+
     fn description() -> String {
         format!("FF1 pure Rust (key bits: {})", KEY_LENGTH * 8,)
     }
@@ -711,9 +711,8 @@ mod tests {
         let key = [0_u8; KEY_LENGTH];
         let plaintext = ccn
             .as_bytes()
-            .to_vec()
-            .into_iter()
-            .map(u16::from)
+            .iter()
+            .map(|b| u16::from(*b))
             .collect::<Vec<_>>();
         let ciphertext = FF1Crypto::encrypt_u16(&key, &[], 128, plaintext.clone())?;
         let cleartext = FF1Crypto::decrypt_u16(&key, &[], 128, ciphertext)?;

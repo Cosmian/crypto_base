@@ -1,8 +1,3 @@
-// TODO BGR had to de-actiavte sodium binding for now becasue decryption also
-// requires TODO passing the public key (which does not make a lot of sense)
-// #[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
-// pub mod x25519_sodium;
-
 pub mod ristretto;
 
 use std::{convert::TryFrom, fmt::Display, vec::Vec};
@@ -20,43 +15,54 @@ pub trait AsymmetricCrypto: Send + Sync {
     type KeyPair: KeyPair;
     type KeygenParam;
 
+    /// Instantiate the asymmetric scheme
     fn new() -> Self;
 
-    fn new_attrs(attrs: &[u32]) -> Self;
-
+    /// The plain English description of the scheme
     fn description(&self) -> String;
 
+    /// Generate a key pair
     fn generate_key_pair(&self, param: Self::KeygenParam) -> anyhow::Result<Self::KeyPair>;
 
-    // To allow dependencies on the asymmetric scheme
-    // this function generates the usable symmetric key and its
-    // encrypted form serialized. The serialization part is needed when
-    // the generation is done by the asymmetric scheme but a
-    // postprocessing is performed to derive the symmetric key. In this case
-    // we must encrypt the pre processing form, not the key itself
-    fn generate_symmetric_key<S: SymmetricCrypto>(
+    /// Generate a symmetric key which is appropriate for asymmetric encryption
+    /// in the case of an hybrid encryption scheme
+    fn generate_symmetric_key<S: SymmetricCrypto>(&self) -> anyhow::Result<S::Key>;
+
+    /// Encrypt a symmetric key used in an hybrid encryption case.
+    /// In most cases, this is the same as the encrypt method
+    fn encrypt_symmetric_key<S: SymmetricCrypto>(
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
-    ) -> anyhow::Result<(S::Key, Vec<u8>)>;
+        symmetric_key: &S::Key,
+    ) -> anyhow::Result<Vec<u8>>;
 
+    /// Decrypt a symmetric key used in an hybrid encryption scheme
     fn decrypt_symmetric_key<S: SymmetricCrypto>(
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         data: &[u8],
     ) -> anyhow::Result<S::Key>;
 
+    /// A utility function to generate random bytes from an uniform distribution
+    /// using a cryptographically secure RNG
     fn generate_random_bytes(&self, len: usize) -> Vec<u8>;
 
+    /// The encrypted message length - this may not be known in certain schemes
+    /// in which case zero is returned
     fn encrypted_message_length(&self, clear_text_message_length: usize) -> usize;
 
+    /// Encrypt a message
     fn encrypt(
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
         data: &[u8],
     ) -> anyhow::Result<Vec<u8>>;
 
+    /// The decrypted message length - this may not be known in certain schemes
+    /// in which case zero is returned
     fn clear_text_message_length(encrypted_message_length: usize) -> usize;
 
+    /// Decrypt a message
     fn decrypt(
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
