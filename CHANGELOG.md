@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [0.3.0] - 2022-01-24
+### Added
+- Support for encryption parameters on the asymmetric schemes (e.g. ABE)
+### Changed
+### Fixed
+### Removed
+---
+
+---
 ## [0.2.0] - 2022-01-24
 ### Added
 
