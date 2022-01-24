@@ -13,7 +13,12 @@ pub trait KeyPair: TryFrom<&'static [u8]> + Clone + Display + PartialEq {
 
 pub trait AsymmetricCrypto: Send + Sync {
     type KeyPair: KeyPair;
-    type KeygenParam;
+    /// Some schemes such as ABE require a Policy passed for master key
+    /// generation
+    type KeyGenerationParameters;
+    /// Some schemes such as ABE require POlicy attributes to be passed during
+    /// encryption
+    type EncryptionParameters;
 
     /// Instantiate the asymmetric scheme
     fn new() -> Self;
@@ -22,7 +27,10 @@ pub trait AsymmetricCrypto: Send + Sync {
     fn description(&self) -> String;
 
     /// Generate a key pair
-    fn generate_key_pair(&self, param: Self::KeygenParam) -> anyhow::Result<Self::KeyPair>;
+    fn generate_key_pair(
+        &self,
+        parameters: Option<&Self::KeyGenerationParameters>,
+    ) -> anyhow::Result<Self::KeyPair>;
 
     /// Generate a symmetric key which is appropriate for asymmetric encryption
     /// in the case of an hybrid encryption scheme
@@ -33,6 +41,7 @@ pub trait AsymmetricCrypto: Send + Sync {
     fn encrypt_symmetric_key<S: SymmetricCrypto>(
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
+        encryption_parameters: Option<&Self::EncryptionParameters>,
         symmetric_key: &S::Key,
     ) -> anyhow::Result<Vec<u8>>;
 
@@ -55,6 +64,7 @@ pub trait AsymmetricCrypto: Send + Sync {
     fn encrypt(
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
+        encryption_parameters: Option<&Self::EncryptionParameters>,
         data: &[u8],
     ) -> anyhow::Result<Vec<u8>>;
 
