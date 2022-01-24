@@ -259,8 +259,9 @@ impl X25519Crypto {
 }
 
 impl AsymmetricCrypto for X25519Crypto {
+    type EncryptionParameters = ();
+    type KeyGenerationParameters = ();
     type KeyPair = X25519KeyPair;
-    type KeygenParam = ();
 
     /// The plain English description of the scheme
     #[must_use]
@@ -276,7 +277,10 @@ impl AsymmetricCrypto for X25519Crypto {
     }
 
     /// Generate a key pair
-    fn generate_key_pair(&self, _: Self::KeygenParam) -> anyhow::Result<Self::KeyPair> {
+    fn generate_key_pair(
+        &self,
+        _: Option<&Self::KeyGenerationParameters>,
+    ) -> anyhow::Result<Self::KeyPair> {
         let rng = &mut *self.rng.lock().expect("a mutex lock failed");
         Ok(X25519KeyPair::new(rng))
     }
@@ -294,9 +298,10 @@ impl AsymmetricCrypto for X25519Crypto {
     fn encrypt_symmetric_key<S: SymmetricCrypto>(
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
+        _: Option<&Self::EncryptionParameters>,
         symmetric_key: &S::Key,
     ) -> anyhow::Result<Vec<u8>> {
-        self.encrypt(public_key, &symmetric_key.as_bytes())
+        self.encrypt(public_key, None, &symmetric_key.as_bytes())
     }
 
     /// Decrypt a symmetric key used in an hybrid encryption scheme
@@ -327,6 +332,7 @@ impl AsymmetricCrypto for X25519Crypto {
     fn encrypt(
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
+        _: Option<&Self::EncryptionParameters>,
         data: &[u8],
     ) -> anyhow::Result<Vec<u8>> {
         let rng = &mut *self.rng.lock().expect("a mutex lock failed");
@@ -397,7 +403,7 @@ mod test {
     #[test]
     fn test_generate_key_pair() {
         let crypto = super::X25519Crypto::new();
-        let key_pair_1 = crypto.generate_key_pair(()).unwrap();
+        let key_pair_1 = crypto.generate_key_pair(None).unwrap();
         assert_ne!(
             &[0_u8; super::PRIVATE_KEY_LENGTH],
             key_pair_1.private_key.0.as_bytes()
@@ -414,7 +420,7 @@ mod test {
             super::PUBLIC_KEY_LENGTH as usize,
             key_pair_1.public_key.as_bytes().len()
         );
-        let key_pair_2 = crypto.generate_key_pair(()).unwrap();
+        let key_pair_2 = crypto.generate_key_pair(None).unwrap();
         assert_ne!(key_pair_2.private_key, key_pair_1.private_key);
         assert_ne!(key_pair_2.public_key, key_pair_1.public_key);
     }
@@ -422,7 +428,7 @@ mod test {
     #[test]
     fn test_parse_key_pair() {
         let crypto = super::X25519Crypto::new();
-        let key_pair = crypto.generate_key_pair(()).unwrap();
+        let key_pair = crypto.generate_key_pair(None).unwrap();
         let hex = format!("{}", key_pair);
         let recovered =
             super::X25519KeyPair::try_from(hex::decode(hex).unwrap().as_slice()).unwrap();
@@ -432,7 +438,7 @@ mod test {
     #[test]
     fn test_parse_public_key() {
         let crypto = super::X25519Crypto::new();
-        let key_pair = crypto.generate_key_pair(()).unwrap();
+        let key_pair = crypto.generate_key_pair(None).unwrap();
         let hex = format!("{}", key_pair.public_key());
         let recovered =
             super::X25519PublicKey::try_from(hex::decode(hex).unwrap().as_slice()).unwrap();
@@ -444,8 +450,10 @@ mod test {
         let crypto = super::X25519Crypto::new();
         let random_msg = crypto.generate_random_bytes(4096);
         assert_ne!(vec![0_u8; 4096], random_msg);
-        let key_pair: super::X25519KeyPair = crypto.generate_key_pair(()).unwrap();
-        let enc_bytes = crypto.encrypt(&key_pair.public_key, &random_msg).unwrap();
+        let key_pair: super::X25519KeyPair = crypto.generate_key_pair(None).unwrap();
+        let enc_bytes = crypto
+            .encrypt(&key_pair.public_key, None, &random_msg)
+            .unwrap();
         assert_eq!(
             4096_usize + ECIES_ENCRYPTION_OVERHEAD,
             crypto.encrypted_message_length(random_msg.len())
@@ -461,7 +469,7 @@ mod test {
     #[test]
     fn test_encryption_decryption_symmetric_key() {
         let crypto = super::X25519Crypto::new();
-        let key_pair = crypto.generate_key_pair(()).unwrap();
+        let key_pair = crypto.generate_key_pair(None).unwrap();
 
         let sym_key = crypto
             .generate_symmetric_key::<aes_256_gcm_pure::Aes256GcmCrypto>()
@@ -469,6 +477,7 @@ mod test {
         let enc_sym_key = crypto
             .encrypt_symmetric_key::<aes_256_gcm_pure::Aes256GcmCrypto>(
                 key_pair.public_key(),
+                None,
                 &sym_key,
             )
             .unwrap();

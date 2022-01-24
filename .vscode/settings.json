@@ -2,6 +2,8 @@
     "cSpell.words": [
         "ciphertext",
         "cleartext",
+        "ECIES",
+        "HKDF",
         "libsodium",
         "ristretto"
     ]

@@ -128,11 +128,14 @@ where
     pub fn as_bytes(
         &self,
         public_key: &<<A as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
+        encryption_parameters: Option<&<A as AsymmetricCrypto>::EncryptionParameters>,
     ) -> anyhow::Result<Vec<u8>> {
         // Encrypted Symmetric key
-        let encrypted_symmetric_key = self
-            .asymmetric_scheme
-            .encrypt_symmetric_key::<S>(public_key, &self.symmetric_key)?;
+        let encrypted_symmetric_key = self.asymmetric_scheme.encrypt_symmetric_key::<S>(
+            public_key,
+            encryption_parameters,
+            &self.symmetric_key,
+        )?;
         // ..size
         let mut bytes = u32_len(&encrypted_symmetric_key)?.to_vec();
         // ...bytes
@@ -228,7 +231,7 @@ mod tests {
     #[test]
     pub fn test_header() -> anyhow::Result<()> {
         let asymmetric_scheme = X25519Crypto::default();
-        let key_pair = asymmetric_scheme.generate_key_pair(())?;
+        let key_pair = asymmetric_scheme.generate_key_pair(None)?;
 
         // Full metadata test
         let metadata_full = Metadata {
@@ -241,7 +244,7 @@ mod tests {
             metadata_full.clone(),
         )?;
 
-        let bytes = header.as_bytes(&key_pair.public_key)?;
+        let bytes = header.as_bytes(&key_pair.public_key, None)?;
         let header_ = Header::<X25519Crypto, Aes256GcmCrypto>::from_encrypted_bytes(
             &bytes,
             &asymmetric_scheme,
@@ -261,7 +264,7 @@ mod tests {
             metadata_sec.clone(),
         )?;
 
-        let bytes = header.as_bytes(&key_pair.public_key)?;
+        let bytes = header.as_bytes(&key_pair.public_key, None)?;
         let header_ = Header::<X25519Crypto, Aes256GcmCrypto>::from_encrypted_bytes(
             &bytes,
             &asymmetric_scheme,
@@ -281,7 +284,7 @@ mod tests {
             metadata_empty.clone(),
         )?;
 
-        let bytes = header.as_bytes(&key_pair.public_key)?;
+        let bytes = header.as_bytes(&key_pair.public_key, None)?;
         let header_ = Header::<X25519Crypto, Aes256GcmCrypto>::from_encrypted_bytes(
             &bytes,
             &asymmetric_scheme,
