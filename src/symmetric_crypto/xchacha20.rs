@@ -163,22 +163,20 @@ impl Default for XChacha20Crypto {
     }
 }
 
-impl XChacha20Crypto {
+impl SymmetricCrypto for XChacha20Crypto {
+    type Key = Key;
+    type Nonce = Nonce;
+
+    const MAC_LENGTH: usize = MAC_LENGTH;
+
     #[must_use]
-    pub fn new() -> XChacha20Crypto {
+    fn new() -> XChacha20Crypto {
         unsafe {
             sodium_init();
         };
         debug!("Instantiated XChaCha20");
         XChacha20Crypto {}
     }
-}
-
-impl SymmetricCrypto for XChacha20Crypto {
-    type Key = Key;
-    type Nonce = Nonce;
-
-    const MAC_LENGTH: usize = MAC_LENGTH;
 
     fn description() -> String {
         format!(

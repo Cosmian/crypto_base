@@ -416,9 +416,14 @@ impl Default for Aes256GcmCrypto {
     }
 }
 
-impl Aes256GcmCrypto {
+impl SymmetricCrypto for Aes256GcmCrypto {
+    type Key = Key;
+    type Nonce = Nonce;
+
+    const MAC_LENGTH: usize = MAC_LENGTH;
+
     #[must_use]
-    pub fn new() -> Aes256GcmCrypto {
+    fn new() -> Self {
         unsafe {
             sodium_init();
             if crypto_aead_aes256gcm_is_available() != 1 {
@@ -428,13 +433,6 @@ impl Aes256GcmCrypto {
         debug!("Instantiated AES 256 GCM");
         Aes256GcmCrypto {}
     }
-}
-
-impl SymmetricCrypto for Aes256GcmCrypto {
-    type Key = Key;
-    type Nonce = Nonce;
-
-    const MAC_LENGTH: usize = MAC_LENGTH;
 
     fn description() -> String {
         format!(
@@ -647,7 +645,6 @@ mod tests {
         Ok(())
     }
 
-    #[test]
     #[test]
     fn test_encryption_decryption_aes256gcm() {
         let aes = Aes256GcmCrypto::new();

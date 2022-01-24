@@ -44,6 +44,9 @@ pub trait SymmetricCrypto: Send + Sync {
     type Key: Key;
     type Nonce: Nonce;
 
+    /// Instantiate the symmetric crypto scheme with default parameters
+    fn new() -> Self;
+
     /// A short description of the scheme
     fn description() -> String;
 

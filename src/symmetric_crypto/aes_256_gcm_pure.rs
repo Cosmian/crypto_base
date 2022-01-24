@@ -185,15 +185,6 @@ impl PartialEq for Aes256GcmCrypto {
     }
 }
 
-impl Aes256GcmCrypto {
-    #[must_use]
-    pub fn new() -> Aes256GcmCrypto {
-        Aes256GcmCrypto {
-            rng: Mutex::new(CsRng::new()),
-        }
-    }
-}
-
 impl Default for Aes256GcmCrypto {
     fn default() -> Self {
         Self::new()
@@ -205,6 +196,13 @@ impl SymmetricCrypto for Aes256GcmCrypto {
     type Nonce = Nonce;
 
     const MAC_LENGTH: usize = MAC_LENGTH;
+
+    #[must_use]
+    fn new() -> Self {
+        Aes256GcmCrypto {
+            rng: Mutex::new(CsRng::new()),
+        }
+    }
 
     fn description() -> String {
         format!(
