@@ -1,55 +1,70 @@
 pub mod ristretto;
 
-use std::{convert::TryFrom, fmt::Display, vec::Vec};
+use std::vec::Vec;
 
 use crate::symmetric_crypto::SymmetricCrypto;
 
-pub trait KeyPair: TryFrom<&'static [u8]> + Clone + Display + PartialEq {
-    type PublicKey: TryFrom<&'static [u8]> + Clone + Display + PartialEq;
+pub trait KeyPair {
+    type PublicKey;
     type PrivateKey;
     fn public_key(&self) -> &Self::PublicKey;
     fn private_key(&self) -> &Self::PrivateKey;
 }
 
 pub trait AsymmetricCrypto: Send + Sync {
+    /// Specify the type of Keys
     type KeyPair: KeyPair;
-    /// Some schemes such as ABE require a Policy passed for master key
-    /// generation
-    type KeyGenerationParameters;
-    /// Some schemes such as ABE require POlicy attributes to be passed during
-    /// encryption
+
+    /// Support for schemes which require some parameters to be set right after
+    /// initialisation such as a Policy for ABE
+    type SchemeParameters;
+
+    /// Support for schemes such as ABE which require an Access Policy and a
+    /// Public Key to generate a user decryption key pair
+    type KeyPairGenerationParameters;
+
+    /// Support for schemes such as ABE which require an Access Policy to
+    /// generate a user decryption key
+    type PrivateKeyGenerationParameters;
+
+    /// Support for schemes such as ABE which require Policy attributes to be
+    /// passed during encryption
     type EncryptionParameters;
 
     /// Instantiate the asymmetric scheme
     fn new() -> Self;
 
+    /// Allow setting some scheme parameters after instantiation
+    fn set_scheme_parameters(self, parameters: Self::SchemeParameters) -> Self;
+
     /// The plain English description of the scheme
     fn description(&self) -> String;
 
-    /// Generate a key pair
+    /// Generate a key pair, private key and public key
     fn generate_key_pair(
         &self,
-        parameters: Option<&Self::KeyGenerationParameters>,
+        parameters: Option<&Self::KeyPairGenerationParameters>,
     ) -> anyhow::Result<Self::KeyPair>;
 
-    /// Generate a symmetric key which is appropriate for asymmetric encryption
-    /// in the case of an hybrid encryption scheme
-    fn generate_symmetric_key<S: SymmetricCrypto>(&self) -> anyhow::Result<S::Key>;
+    /// Generate a private key
+    fn generate_private_key(
+        &self,
+        parameters: Option<&Self::PrivateKeyGenerationParameters>,
+    ) -> anyhow::Result<<Self::KeyPair as KeyPair>::PrivateKey>;
 
-    /// Encrypt a symmetric key used in an hybrid encryption case.
-    /// In most cases, this is the same as the encrypt method
-    fn encrypt_symmetric_key<S: SymmetricCrypto>(
+    /// Generate a symmetric key, and its encryption,to be used in an hybrid
+    /// encryption scheme
+    fn generate_symmetric_key<S: SymmetricCrypto>(
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
         encryption_parameters: Option<&Self::EncryptionParameters>,
-        symmetric_key: &S::Key,
-    ) -> anyhow::Result<Vec<u8>>;
+    ) -> anyhow::Result<(S::Key, Vec<u8>)>;
 
     /// Decrypt a symmetric key used in an hybrid encryption scheme
     fn decrypt_symmetric_key<S: SymmetricCrypto>(
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
-        data: &[u8],
+        encrypted_symmetric_key: &[u8],
     ) -> anyhow::Result<S::Key>;
 
     /// A utility function to generate random bytes from an uniform distribution
@@ -76,6 +91,6 @@ pub trait AsymmetricCrypto: Send + Sync {
     fn decrypt(
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
-        data: &[u8],
+        cipher_text: &[u8],
     ) -> anyhow::Result<Vec<u8>>;
 }

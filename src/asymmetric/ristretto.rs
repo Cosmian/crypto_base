@@ -260,10 +260,12 @@ impl X25519Crypto {
 
 impl AsymmetricCrypto for X25519Crypto {
     type EncryptionParameters = ();
-    type KeyGenerationParameters = ();
     type KeyPair = X25519KeyPair;
+    type KeyPairGenerationParameters = ();
+    type PrivateKeyGenerationParameters = ();
+    type SchemeParameters = ();
 
-    /// The plain English description of the scheme
+    /// Instantiate the Ristretto X25519 Curve
     #[must_use]
     fn new() -> Self {
         Self {
@@ -271,37 +273,45 @@ impl AsymmetricCrypto for X25519Crypto {
         }
     }
 
+    // No effect on this curve
+    fn set_scheme_parameters(self, _: Self::SchemeParameters) -> Self {
+        self
+    }
+
     /// The plain English description of the scheme
     fn description(&self) -> String {
         "Ristretto X25519".to_string()
     }
 
-    /// Generate a key pair
+    /// Generate a private key
+    fn generate_private_key(
+        &self,
+        _: Option<&Self::PrivateKeyGenerationParameters>,
+    ) -> anyhow::Result<<Self::KeyPair as KeyPair>::PrivateKey> {
+        let rng = &mut *self.rng.lock().expect("a mutex lock failed");
+        Ok(X25519PrivateKey::new(rng))
+    }
+
+    /// Generate a key pair, private key and public key
     fn generate_key_pair(
         &self,
-        _: Option<&Self::KeyGenerationParameters>,
+        _: Option<&Self::KeyPairGenerationParameters>,
     ) -> anyhow::Result<Self::KeyPair> {
         let rng = &mut *self.rng.lock().expect("a mutex lock failed");
         Ok(X25519KeyPair::new(rng))
     }
 
-    /// Generate a symmetric key which is appropriate for asymmetric encryption
-    /// in the case of an hybrid encryption scheme
-    fn generate_symmetric_key<S: SymmetricCrypto>(&self) -> anyhow::Result<S::Key> {
-        let bytes: Vec<u8> = self.generate_random_bytes(S::Key::LENGTH);
-        let key = S::generate_key_from_rnd(&bytes)?;
-        Ok(key)
-    }
-
-    /// Encrypt a symmetric key used in an hybrid encryption case.
-    /// In most cases, this is the same as the encrypt method
-    fn encrypt_symmetric_key<S: SymmetricCrypto>(
+    /// Generate a symmetric key, and its encryption,to be used in an hybrid
+    /// encryption scheme
+    fn generate_symmetric_key<S: SymmetricCrypto>(
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
         _: Option<&Self::EncryptionParameters>,
-        symmetric_key: &S::Key,
-    ) -> anyhow::Result<Vec<u8>> {
-        self.encrypt(public_key, None, &symmetric_key.as_bytes())
+    ) -> anyhow::Result<(S::Key, Vec<u8>)> {
+        let bytes: Vec<u8> = self.generate_random_bytes(S::Key::LENGTH);
+        let symmetric_key = S::generate_key_from_rnd(&bytes)?;
+        let encrypted_key = self.encrypt(public_key, None, &symmetric_key.as_bytes())?;
+        Ok((symmetric_key, encrypted_key))
     }
 
     /// Decrypt a symmetric key used in an hybrid encryption scheme
@@ -471,14 +481,10 @@ mod test {
         let crypto = super::X25519Crypto::new();
         let key_pair = crypto.generate_key_pair(None).unwrap();
 
-        let sym_key = crypto
-            .generate_symmetric_key::<aes_256_gcm_pure::Aes256GcmCrypto>()
-            .unwrap();
-        let enc_sym_key = crypto
-            .encrypt_symmetric_key::<aes_256_gcm_pure::Aes256GcmCrypto>(
+        let (sym_key, enc_sym_key) = crypto
+            .generate_symmetric_key::<aes_256_gcm_pure::Aes256GcmCrypto>(
                 key_pair.public_key(),
                 None,
-                &sym_key,
             )
             .unwrap();
         let decrypted_key = crypto.decrypt_symmetric_key::<aes_256_gcm_pure::Aes256GcmCrypto>(

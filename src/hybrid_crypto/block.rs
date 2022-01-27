@@ -1,33 +1,33 @@
 use crate::symmetric_crypto::{Nonce, SymmetricCrypto};
 
 /// A block holds clear text data that needs to be encrypted.
-/// The max fixed size of clear text is available as
-/// `Block::MAX_CLEAR_TEXT_LENGTH`
+/// The max fixed size of clear text is set by the const generic `N`.
+/// The max block encrypted size is available as `Block::MAX_ENCRYPTED_LENGTH`
 ///
 /// When calling `to_encrypted_bytes(...)` an array of bytes is generated that
 /// is made of a `BlockHeder` containing the nonce, the cipher text and  -
 /// depending on the symmetric scheme - an authentication MAC. The nonce is
 /// refreshed on each call to `to_encrypted_bytes(...)`
-pub struct Block<S>
+pub struct Block<S, const N: usize>
 where
-    S: SymmetricCrypto + 'static + Sized,
+    S: SymmetricCrypto,
 {
     clear_text: Vec<u8>, //padded with zeroes if need be
     phantom_data: std::marker::PhantomData<S>,
 }
 
-impl<S> Block<S>
+impl<S, const N: usize> Block<S, N>
 where
-    S: SymmetricCrypto + 'static + Sized,
+    S: SymmetricCrypto,
 {
     pub const ENCRYPTION_OVERHEAD: usize =
         BlockHeader::<S>::LENGTH + <S as SymmetricCrypto>::MAC_LENGTH;
-    pub const MAX_BLOCK_LENGTH: usize = 4096;
-    pub const MAX_CLEAR_TEXT_LENGTH: usize = Self::MAX_BLOCK_LENGTH - Self::ENCRYPTION_OVERHEAD;
+    pub const MAX_CLEAR_TEXT_LENGTH: usize = N;
+    pub const MAX_ENCRYPTED_LENGTH: usize = N + Self::ENCRYPTION_OVERHEAD;
 
     // Create a new, empty block
     #[must_use]
-    pub fn new() -> Block<S> {
+    pub fn new() -> Block<S, N> {
         Block {
             clear_text: vec![],
             phantom_data: std::marker::PhantomData::default(),
@@ -42,7 +42,7 @@ where
         encrypted_bytes: &[u8],
         symmetric_crypto: &S,
         symmetric_key: &<S as SymmetricCrypto>::Key,
-        uid: &[u8; 32],
+        uid: &[u8],
         block_number: usize,
     ) -> anyhow::Result<Self> {
         // The block header is always present
@@ -52,7 +52,7 @@ where
                 encrypted_bytes.len(),
             );
         }
-        if encrypted_bytes.len() > Self::MAX_BLOCK_LENGTH {
+        if encrypted_bytes.len() > Self::MAX_ENCRYPTED_LENGTH {
             anyhow::bail!(
                 "array of encrypted data bytes of length {} is too large",
                 encrypted_bytes.len(),
@@ -84,7 +84,7 @@ where
         &self,
         symmetric_crypto: &S,
         symmetric_key: &<S as SymmetricCrypto>::Key,
-        uid: &[u8; 32],
+        uid: &[u8],
         block_number: usize,
     ) -> anyhow::Result<Vec<u8>> {
         // refresh the nonce
@@ -116,7 +116,7 @@ where
     /// Pad the block with zeroes if the offset is beyond the current end of the
     /// block.
     ///
-    /// Returns the length of the data written and the data that did not fit in
+    /// Returns the length of the data written
     pub fn write(&mut self, start_offset: usize, data: &[u8]) -> anyhow::Result<usize> {
         if start_offset >= Self::MAX_CLEAR_TEXT_LENGTH {
             anyhow::bail!(
@@ -144,9 +144,9 @@ where
     }
 }
 
-impl<S> Default for Block<S>
+impl<S, const N: usize> Default for Block<S, N>
 where
-    S: SymmetricCrypto + 'static + Sized,
+    S: SymmetricCrypto,
 {
     fn default() -> Self {
         Self::new()
@@ -156,7 +156,7 @@ where
 /// The `BlockHeader` contains the nonce/IV of an encrypted `Block`
 pub struct BlockHeader<S>
 where
-    S: SymmetricCrypto + 'static + Sized,
+    S: SymmetricCrypto,
 {
     // clear_text_length: u16,
     nonce: <S as SymmetricCrypto>::Nonce,
@@ -164,7 +164,7 @@ where
 
 impl<S> BlockHeader<S>
 where
-    S: SymmetricCrypto + 'static + Sized,
+    S: SymmetricCrypto,
 {
     pub const LENGTH: usize = <S as SymmetricCrypto>::Nonce::LENGTH;
 
@@ -192,7 +192,7 @@ mod tests {
     use super::Block;
     use crate::symmetric_crypto::aes_256_gcm_pure::{Aes256GcmCrypto, CsRng};
 
-    type Bl = Block<Aes256GcmCrypto>;
+    type Bl = Block<Aes256GcmCrypto, 4096>;
 
     #[test]
     fn test_empty_block() -> anyhow::Result<()> {
@@ -233,7 +233,7 @@ mod tests {
         );
         assert_eq!(
             Bl::ENCRYPTION_OVERHEAD + Bl::MAX_CLEAR_TEXT_LENGTH,
-            Bl::MAX_BLOCK_LENGTH
+            Bl::MAX_ENCRYPTED_LENGTH
         );
         let c =
             Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_crypto, &symmetric_key, &uid, 1)?;

@@ -11,6 +11,10 @@ fn main() {
     if target_feature.contains("crt-static") {
         return
     }
+    // Do not build bindgen if feature libsodium is not present
+    if std::env::var("CARGO_FEATURE_LIBSODIUM").is_err() {
+        return
+    }
 
     // ignoring build for WASM arch or Windows OS.
     if target_arch == "wasm32" || target_os == "windows" {
