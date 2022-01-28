@@ -15,10 +15,6 @@ pub trait AsymmetricCrypto: Send + Sync {
     /// Specify the type of Keys
     type KeyPair: KeyPair;
 
-    /// Support for schemes which require some parameters to be set right after
-    /// initialisation such as a Policy for ABE
-    type SchemeParameters;
-
     /// Support for schemes such as ABE which require an Access Policy and a
     /// Public Key to generate a user decryption key pair
     type KeyPairGenerationParameters;
@@ -33,9 +29,6 @@ pub trait AsymmetricCrypto: Send + Sync {
 
     /// Instantiate the asymmetric scheme
     fn new() -> Self;
-
-    /// Allow setting some scheme parameters after instantiation
-    fn set_scheme_parameters(self, parameters: Self::SchemeParameters) -> Self;
 
     /// The plain English description of the scheme
     fn description(&self) -> String;

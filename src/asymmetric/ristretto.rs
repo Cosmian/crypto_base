@@ -263,7 +263,6 @@ impl AsymmetricCrypto for X25519Crypto {
     type KeyPair = X25519KeyPair;
     type KeyPairGenerationParameters = ();
     type PrivateKeyGenerationParameters = ();
-    type SchemeParameters = ();
 
     /// Instantiate the Ristretto X25519 Curve
     #[must_use]
@@ -271,11 +270,6 @@ impl AsymmetricCrypto for X25519Crypto {
         Self {
             rng: Mutex::new(CsRng::new()),
         }
-    }
-
-    // No effect on this curve
-    fn set_scheme_parameters(self, _: Self::SchemeParameters) -> Self {
-        self
     }
 
     /// The plain English description of the scheme
@@ -380,7 +374,7 @@ impl AsymmetricCrypto for X25519Crypto {
             anyhow::bail!("decryption failed: message is too short");
         }
         if data.len() == ECIES_ENCRYPTION_OVERHEAD {
-            return Ok(vec![])
+            return Ok(vec![]);
         }
         // gʸ
         let ephemeral_public_key_bytes = &data[0..PUBLIC_KEY_LENGTH];
