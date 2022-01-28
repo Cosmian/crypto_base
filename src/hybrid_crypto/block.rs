@@ -133,11 +133,11 @@ where
         // see what space is available
         let space_left = Self::MAX_CLEAR_TEXT_LENGTH - start_offset;
         if space_left == 0 {
-            return Ok(0)
+            return Ok(0);
         }
         if data.len() <= space_left {
             self.clear_text.extend_from_slice(data);
-            return Ok(data.len())
+            return Ok(data.len());
         }
         self.clear_text.extend_from_slice(&data[0..space_left]);
         Ok(space_left)

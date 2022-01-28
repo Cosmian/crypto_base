@@ -9,16 +9,16 @@ fn main() {
     };
     // ignoring lib sodium on target features argument
     if target_feature.contains("crt-static") {
-        return
+        return;
     }
     // Do not build bindgen if feature libsodium is not present
     if std::env::var("CARGO_FEATURE_LIBSODIUM").is_err() {
-        return
+        return;
     }
 
     // ignoring build for WASM arch or Windows OS.
     if target_arch == "wasm32" || target_os == "windows" {
-        return
+        return;
     }
     // Write the bindings to the $OUT_DIR/bindings.rs File.
     let out_path = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
@@ -33,7 +33,7 @@ fn main() {
     };
 
     if !Path::new(&header).exists() {
-        return
+        return;
     }
 
     // generate our FFI code for the C API

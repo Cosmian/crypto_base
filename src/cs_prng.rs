@@ -44,7 +44,7 @@ impl Uniform {
         loop {
             let r = self.big_uint(bits);
             if &r < q {
-                return r
+                return r;
             }
         }
     }

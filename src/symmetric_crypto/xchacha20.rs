@@ -234,7 +234,7 @@ impl SymmetricCrypto for XChacha20Crypto {
         additional_data: Option<&[u8]>,
     ) -> anyhow::Result<Vec<u8>> {
         if bytes.is_empty() {
-            return Ok(vec![])
+            return Ok(vec![]);
         }
         if bytes.len() < MAC_LENGTH + MIN_DATA_LENGTH {
             anyhow::bail!("decryption failed - data too short");
