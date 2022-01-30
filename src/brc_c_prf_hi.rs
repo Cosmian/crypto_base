@@ -21,7 +21,7 @@ pub fn aes_ni_available() -> bool {
         let information = cupid::master();
         if let Some(information) = information {
             if information.aesni() {
-                return true
+                return true;
             }
         }
     }
@@ -99,7 +99,7 @@ impl TryFrom<&[u8]> for Trapdoor {
 
     fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
         if b.len() < 4 {
-            return Err("Invalid serialized trapdoor".to_string())
+            return Err("Invalid serialized trapdoor".to_string());
         }
         let mut l_a: [u8; 4] = [0, 0, 0, 0];
         l_a.copy_from_slice(&b[0..4]);
@@ -166,7 +166,7 @@ pub fn trapdoor_range(
 fn trapdoor_inner_range_no_rec(min_c: u32, max_c: u32, k: &[u8; 32], level: u8) -> Vec<Node> {
     let mut trapdoor = Vec::<Node>::new();
     if max_c < min_c {
-        return trapdoor
+        return trapdoor;
     }
     // compute the first node where 'min_c' and 'max_c' differs
     let mut shift = level - 1;
@@ -175,13 +175,13 @@ fn trapdoor_inner_range_no_rec(min_c: u32, max_c: u32, k: &[u8; 32], level: u8) 
         let bit_min = (min_c >> shift) & 0x01;
         let bit_max = (max_c >> shift) & 0x01;
         if bit_min != bit_max {
-            break
+            break;
         }
         // bit_min = bit_max
         node = if bit_min == 0 { g0(&node) } else { g1(&node) };
         if shift == 0 {
             // case min_c = max_c
-            return vec![Node { level: 0, k: node }]
+            return vec![Node { level: 0, k: node }];
         } else {
             shift -= 1
         };
@@ -203,7 +203,7 @@ fn trapdoor_inner_range_no_rec(min_c: u32, max_c: u32, k: &[u8; 32], level: u8) 
             return vec![Node {
                 level: shift + 1,
                 k: node,
-            }]
+            }];
         } else {
             // else we have the whole left subtree
             trapdoor.push(Node {
@@ -288,13 +288,13 @@ fn trapdoor_inner(max_c: u32, k: &[u8; 32], level: u8, c: u32) -> Vec<Node> {
     if bit == 0 {
         let g0_k = g0(k);
         if level == 1 {
-            return vec![Node { level: 0, k: g0_k }]
+            return vec![Node { level: 0, k: g0_k }];
         }
-        return trapdoor_inner(max_c, &g0_k, level - 1, c << 1)
+        return trapdoor_inner(max_c, &g0_k, level - 1, c << 1);
     }
     // bit = 1
     if level == 1 {
-        return vec![Node { level, k: *k }]
+        return vec![Node { level, k: *k }];
     }
     // mark the (fork) level at which we got the first 1
     let level_bit_1 = level;
@@ -312,10 +312,10 @@ fn trapdoor_inner(max_c: u32, k: &[u8; 32], level: u8, c: u32) -> Vec<Node> {
                 return vec![Node {
                     level: level_bit_1,
                     k: k_bit_1,
-                }]
+                }];
             }
             // keep going down
-            continue
+            continue;
         }
         // bit == 0 => take the g0 value on the left of the fork
         // and go down the tree on the right
@@ -329,7 +329,7 @@ fn trapdoor_inner(max_c: u32, k: &[u8; 32], level: u8, c: u32) -> Vec<Node> {
             level_bit_1 - 1,
             (c << 1) | 0x01,
         ));
-        return v
+        return v;
     }
 }
 
@@ -346,7 +346,7 @@ pub fn leaves(trapdoor: &Trapdoor) -> Vec<[u8; 32]> {
 fn leaves_inner(k: &[u8; 32], level: u8, leaves: &mut Vec<[u8; 32]>) {
     if level == 0 {
         leaves.push(*k);
-        return
+        return;
     }
     let l = level - 1;
     // zero
@@ -360,7 +360,7 @@ fn leaves_inner(k: &[u8; 32], level: u8, leaves: &mut Vec<[u8; 32]>) {
 #[must_use]
 pub fn leaf(k: &[u8; 32], level: u8, c: u32) -> [u8; 32] {
     if level == 0 {
-        return *k
+        return *k;
     }
     let bit = (c >> (level - 1)) & 0x01;
     let next_k = if bit == 0 { g0(k) } else { g1(k) };
@@ -464,7 +464,7 @@ pub(crate) mod tests {
                 _1: None,
             };
             leaves.push(n.clone());
-            return n
+            return n;
         }
         TreeNode {
             _level: level,

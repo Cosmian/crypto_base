@@ -39,7 +39,7 @@ pub trait Key: Into<Vec<u8>> + Clone + PartialEq + Display + Debug + Sync + Send
     }
 }
 
-pub trait SymmetricCrypto: Send + Sync {
+pub trait SymmetricCrypto: Send + Sync + Default {
     const MAC_LENGTH: usize;
     type Key: Key;
     type Nonce: Nonce;

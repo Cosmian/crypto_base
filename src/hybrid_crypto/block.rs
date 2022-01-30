@@ -1,33 +1,32 @@
 use crate::symmetric_crypto::{Nonce, SymmetricCrypto};
 
 /// A block holds clear text data that needs to be encrypted.
-/// The max fixed size of clear text is available as
-/// `Block::MAX_CLEAR_TEXT_LENGTH`
+/// The max fixed length of clear text is set by the const generic `MAX_CLEAR_TEXT_LENGTH`.
+/// The max block encrypted length is available as `Block::MAX_ENCRYPTED_LENGTH`
 ///
 /// When calling `to_encrypted_bytes(...)` an array of bytes is generated that
 /// is made of a `BlockHeder` containing the nonce, the cipher text and  -
 /// depending on the symmetric scheme - an authentication MAC. The nonce is
 /// refreshed on each call to `to_encrypted_bytes(...)`
-pub struct Block<S>
+pub struct Block<S, const MAX_CLEAR_TEXT_LENGTH: usize>
 where
-    S: SymmetricCrypto + 'static + Sized,
+    S: SymmetricCrypto,
 {
     clear_text: Vec<u8>, //padded with zeroes if need be
     phantom_data: std::marker::PhantomData<S>,
 }
 
-impl<S> Block<S>
+impl<S, const MAX_CLEAR_TEXT_LENGTH: usize> Block<S, MAX_CLEAR_TEXT_LENGTH>
 where
-    S: SymmetricCrypto + 'static + Sized,
+    S: SymmetricCrypto,
 {
     pub const ENCRYPTION_OVERHEAD: usize =
         BlockHeader::<S>::LENGTH + <S as SymmetricCrypto>::MAC_LENGTH;
-    pub const MAX_BLOCK_LENGTH: usize = 4096;
-    pub const MAX_CLEAR_TEXT_LENGTH: usize = Self::MAX_BLOCK_LENGTH - Self::ENCRYPTION_OVERHEAD;
+    pub const MAX_ENCRYPTED_LENGTH: usize = MAX_CLEAR_TEXT_LENGTH + Self::ENCRYPTION_OVERHEAD;
 
     // Create a new, empty block
     #[must_use]
-    pub fn new() -> Block<S> {
+    pub fn new() -> Block<S, MAX_CLEAR_TEXT_LENGTH> {
         Block {
             clear_text: vec![],
             phantom_data: std::marker::PhantomData::default(),
@@ -40,11 +39,11 @@ where
     /// same values use to encrypt the block
     pub fn from_encrypted_bytes(
         encrypted_bytes: &[u8],
-        symmetric_crypto: &S,
         symmetric_key: &<S as SymmetricCrypto>::Key,
-        uid: &[u8; 32],
+        uid: &[u8],
         block_number: usize,
     ) -> anyhow::Result<Self> {
+        let symmetric_crypto: S = S::default();
         // The block header is always present
         if encrypted_bytes.len() < Self::ENCRYPTION_OVERHEAD {
             anyhow::bail!(
@@ -52,7 +51,7 @@ where
                 encrypted_bytes.len(),
             );
         }
-        if encrypted_bytes.len() > Self::MAX_BLOCK_LENGTH {
+        if encrypted_bytes.len() > Self::MAX_ENCRYPTED_LENGTH {
             anyhow::bail!(
                 "array of encrypted data bytes of length {} is too large",
                 encrypted_bytes.len(),
@@ -82,11 +81,11 @@ where
     /// that a block cannot be moved within and between resources
     pub fn to_encrypted_bytes(
         &self,
-        symmetric_crypto: &S,
         symmetric_key: &<S as SymmetricCrypto>::Key,
-        uid: &[u8; 32],
+        uid: &[u8],
         block_number: usize,
     ) -> anyhow::Result<Vec<u8>> {
+        let symmetric_crypto: S = S::default();
         // refresh the nonce
         let nonce = symmetric_crypto.generate_nonce();
         let mut ad = uid.to_vec();
@@ -112,17 +111,23 @@ where
         &self.clear_text
     }
 
+    /// Moves clear text data out of the block
+    #[must_use]
+    pub fn clear_text_owned(self) -> Vec<u8> {
+        self.clear_text
+    }
+
     /// Write the given clear text data in the block.
     /// Pad the block with zeroes if the offset is beyond the current end of the
     /// block.
     ///
-    /// Returns the length of the data written and the data that did not fit in
+    /// Returns the length of the data written
     pub fn write(&mut self, start_offset: usize, data: &[u8]) -> anyhow::Result<usize> {
-        if start_offset >= Self::MAX_CLEAR_TEXT_LENGTH {
+        if start_offset >= MAX_CLEAR_TEXT_LENGTH {
             anyhow::bail!(
                 "write in block: start offset: {} is greater than max block clear text len {}",
                 start_offset,
-                Self::MAX_CLEAR_TEXT_LENGTH
+                MAX_CLEAR_TEXT_LENGTH
             );
         }
         // pad if need be
@@ -131,22 +136,22 @@ where
             self.clear_text.extend(vec![0; num_to_pad]);
         }
         // see what space is available
-        let space_left = Self::MAX_CLEAR_TEXT_LENGTH - start_offset;
+        let space_left = MAX_CLEAR_TEXT_LENGTH - start_offset;
         if space_left == 0 {
-            return Ok(0)
+            return Ok(0);
         }
         if data.len() <= space_left {
             self.clear_text.extend_from_slice(data);
-            return Ok(data.len())
+            return Ok(data.len());
         }
         self.clear_text.extend_from_slice(&data[0..space_left]);
         Ok(space_left)
     }
 }
 
-impl<S> Default for Block<S>
+impl<S, const N: usize> Default for Block<S, N>
 where
-    S: SymmetricCrypto + 'static + Sized,
+    S: SymmetricCrypto,
 {
     fn default() -> Self {
         Self::new()
@@ -156,7 +161,7 @@ where
 /// The `BlockHeader` contains the nonce/IV of an encrypted `Block`
 pub struct BlockHeader<S>
 where
-    S: SymmetricCrypto + 'static + Sized,
+    S: SymmetricCrypto,
 {
     // clear_text_length: u16,
     nonce: <S as SymmetricCrypto>::Nonce,
@@ -164,7 +169,7 @@ where
 
 impl<S> BlockHeader<S>
 where
-    S: SymmetricCrypto + 'static + Sized,
+    S: SymmetricCrypto,
 {
     pub const LENGTH: usize = <S as SymmetricCrypto>::Nonce::LENGTH;
 
@@ -192,29 +197,27 @@ mod tests {
     use super::Block;
     use crate::symmetric_crypto::aes_256_gcm_pure::{Aes256GcmCrypto, CsRng};
 
-    type Bl = Block<Aes256GcmCrypto>;
+    const MAX_CLEAR_TEXT_LENGTH: usize = 4096;
+    type Bl = Block<Aes256GcmCrypto, MAX_CLEAR_TEXT_LENGTH>;
 
     #[test]
     fn test_empty_block() -> anyhow::Result<()> {
         let b = Bl::new();
         assert!(b.clear_text().is_empty());
 
-        let symmetric_crypto = Aes256GcmCrypto::default();
         let mut cs_rng = CsRng::default();
         let symmetric_key = cs_rng.generate_key();
         let uid = [1_u8; 32];
         // let iv = cs_rng.generate_nonce();
-        let encrypted_bytes = b.to_encrypted_bytes(&symmetric_crypto, &symmetric_key, &uid, 1)?;
+        let encrypted_bytes = b.to_encrypted_bytes(&symmetric_key, &uid, 1)?;
         assert_eq!(Bl::ENCRYPTION_OVERHEAD, encrypted_bytes.len());
-        let c =
-            Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_crypto, &symmetric_key, &uid, 1)?;
+        let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)?;
         assert!(c.clear_text().is_empty());
         Ok(())
     }
 
     #[test]
     fn test_full_block() -> anyhow::Result<()> {
-        let symmetric_crypto = Aes256GcmCrypto::default();
         let mut cs_rng = CsRng::default();
         let symmetric_key = cs_rng.generate_key();
         let uid = [1_u8; 32];
@@ -223,27 +226,25 @@ mod tests {
         assert!(b.clear_text().is_empty());
         let data = cs_rng.generate_random_bytes(16384);
         let written = b.write(0, &data)?;
-        assert_eq!(Bl::MAX_CLEAR_TEXT_LENGTH, written);
+        assert_eq!(MAX_CLEAR_TEXT_LENGTH, written);
 
         // let iv = cs_rng.generate_nonce();
-        let encrypted_bytes = b.to_encrypted_bytes(&symmetric_crypto, &symmetric_key, &uid, 1)?;
+        let encrypted_bytes = b.to_encrypted_bytes(&symmetric_key, &uid, 1)?;
         assert_eq!(
-            Bl::ENCRYPTION_OVERHEAD + Bl::MAX_CLEAR_TEXT_LENGTH,
+            Bl::ENCRYPTION_OVERHEAD + MAX_CLEAR_TEXT_LENGTH,
             encrypted_bytes.len()
         );
         assert_eq!(
-            Bl::ENCRYPTION_OVERHEAD + Bl::MAX_CLEAR_TEXT_LENGTH,
-            Bl::MAX_BLOCK_LENGTH
+            Bl::ENCRYPTION_OVERHEAD + MAX_CLEAR_TEXT_LENGTH,
+            Bl::MAX_ENCRYPTED_LENGTH
         );
-        let c =
-            Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_crypto, &symmetric_key, &uid, 1)?;
-        assert_eq!(&data[0..Bl::MAX_CLEAR_TEXT_LENGTH], c.clear_text());
+        let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)?;
+        assert_eq!(&data[0..MAX_CLEAR_TEXT_LENGTH], c.clear_text());
         Ok(())
     }
 
     #[test]
     fn test_partial_block() -> anyhow::Result<()> {
-        let symmetric_crypto = Aes256GcmCrypto::default();
         let mut cs_rng = CsRng::default();
         let symmetric_key = cs_rng.generate_key();
         let uid = [1_u8; 32];
@@ -260,10 +261,9 @@ mod tests {
         assert_eq!(100, written);
 
         // let iv = cs_rng.generate_nonce();
-        let encrypted_bytes = b.to_encrypted_bytes(&symmetric_crypto, &symmetric_key, &uid, 1)?;
+        let encrypted_bytes = b.to_encrypted_bytes(&symmetric_key, &uid, 1)?;
         assert_eq!(300 + Bl::ENCRYPTION_OVERHEAD, encrypted_bytes.len());
-        let c =
-            Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_crypto, &symmetric_key, &uid, 1)?;
+        let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)?;
         let mut data: Vec<u8> = vec![];
         data.extend(&data1);
         data.extend(&[0_u8; 100]);

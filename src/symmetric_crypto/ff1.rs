@@ -289,7 +289,7 @@ impl RebasedInput {
         for (k, v) in self.mapping.clone() {
             if u8::try_from(integer)? == v {
                 result = k;
-                break
+                break;
             }
         }
         Ok(result)
@@ -321,12 +321,12 @@ impl RebasedInput {
         let mut result = input;
         for idx in self.excluded_chars_indexes.clone() {
             if idx != 0 {
-                continue
+                continue;
             }
             let char = self.original_chars[idx];
             if char == '-' {
                 result.insert(idx, self.original_chars[idx]);
-                break
+                break;
             }
         }
         result
@@ -340,10 +340,10 @@ impl RebasedInput {
             // Ignore sign
             if i == '-' {
                 result.push(i);
-                continue
+                continue;
             }
             if i == '0' && is_0 {
-                continue
+                continue;
             }
             is_0 = false;
             result.push(i)

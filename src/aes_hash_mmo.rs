@@ -1,5 +1,4 @@
 use aes::cipher::{generic_array::GenericArray, BlockEncrypt, NewBlockCipher};
-// use aesni::stream_cipher::{NewStreamCipher, StreamCipher};
 use aes::Aes256;
 
 /// Using AES 256 as a hash function.
@@ -76,7 +75,7 @@ impl AesMmo {
             data_offset += data_to_copy;
             self.block_offset += data_to_copy;
             if self.block_offset < 32 {
-                return
+                return;
             }
             hash_block(&self.block, &mut self.hash);
             // reset block

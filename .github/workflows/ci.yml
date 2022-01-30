@@ -12,7 +12,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           # Using a rustfmt.toml with unstable features, need nightly
-          toolchain: nightly
+          toolchain: stable
           override: true
           components: rustfmt, clippy
 

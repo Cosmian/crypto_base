@@ -1,20 +1,26 @@
-This resource implements primitives which are useful for other resources
+This crates implements crypto primitives which are useful for other Cosmian crypto resources
 
 - primes: routines to extract prime numbers up to 2^400
 - cs_prng: A cryptographically secure pseudo random generator that generates Big Int(s)
-- brc_cprf: BRC, a constrained PRF (see below)
-- aes_hash_mmo.rs: using the native implementation of AES 256 as a hash function.
+- [brc_cprf](#constrained-prf): BRC, a constrained PRF (see below)
+- [aes_hash_mmo](#aes-as-a-hash-function): using the native implementation of AES 256 as a hash function.
 - timed_cache: a thread safe memory cache where items expire after a certain time
 - timed_caches: a WIP. Do not use for now
 
+It also exposes 2 traits, `SymmetricCrypto` and `AsymmetricCrypto` (aka Public Key Crypto) to which most schemes used at Cosmian are mapped. A fw of these schemes are available under the corresponding directories.
 
+
+## Building
+
+Some of the encryption schemes (xChaCha20 in particular) use [libsodium](https://github.com/jedisct1/libsodium).
+These schemes are not built by default, use `--feature libsodium` to build them.
+
+The default feature schemes can all be built to a WASM target.
 
 ## Constrained PRF
 
 This construct is a simple and efficient range-constrained PRF from the tree-based GGM PRF [GGM84].This instantiation has been described by Kiayiaset al.[KPTZ13](https://people.csail.mit.edu/stavrosp/papers/ccs2013/CCS13_DPRF.pdf) and is called best range cover (BRC).
 
-
-![BRC](img/BRC.jpg)
 
 ### Benchmarks
 

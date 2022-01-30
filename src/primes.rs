@@ -435,7 +435,7 @@ mod tests {
             let mut index = 0;
             for (j, p) in primes.iter().enumerate() {
                 if *p > base {
-                    break
+                    break;
                 }
                 index = j;
             }
