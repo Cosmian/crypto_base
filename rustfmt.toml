@@ -1,3 +1,4 @@
+
 # Specifies which edition is used by the parser.
 # Default value: "2015"
 edition = "2018"
@@ -45,6 +46,4 @@ version = "Two"
 # The following rust files listing have been made in january 2022.
 # This listing allows us first to ignore all rust files formmatting.
 # Then we can remove progressively from this list the files we want to format
-ignore = [
-  "src/brc_c_prf_hi.rs"
-]
+ignore = ["src/brc_c_prf_hi.rs"]

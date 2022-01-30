@@ -11,7 +11,7 @@ pub trait KeyPair {
     fn private_key(&self) -> &Self::PrivateKey;
 }
 
-pub trait AsymmetricCrypto: Send + Sync {
+pub trait AsymmetricCrypto: Send + Sync + Default {
     /// Specify the type of Keys
     type KeyPair: KeyPair;
 

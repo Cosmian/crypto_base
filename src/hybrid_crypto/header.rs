@@ -8,7 +8,7 @@ use crate::{
 
 /// Metadata encrypted as part of the header
 ///
-/// The `sec` is a security parameter:
+/// The `uid` is a security parameter:
 ///  - when using a stream cipher such as AES or ChaCha20, it uniquely
 ///    identifies a resource, such as a file, and is part of the AEAD of every
 ///    block when symmetrically encrypting data. It prevents an attacker from
@@ -19,15 +19,15 @@ use crate::{
 /// data (such as index tags) symmetrically encrypted as part of the header.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Metadata {
-    pub sec: Vec<u8>,
+    pub uid: Vec<u8>,
     pub additional_data: Vec<u8>,
 }
 
 impl Metadata {
     /// Encode the metadata as a byte array
     pub fn as_bytes(&self) -> anyhow::Result<Vec<u8>> {
-        let mut bytes = u32_len(&self.sec)?.to_vec();
-        bytes.extend(&self.sec);
+        let mut bytes = u32_len(&self.uid)?.to_vec();
+        bytes.extend(&self.uid);
         bytes.extend(u32_len(&self.additional_data)?.to_vec());
         bytes.extend(&self.additional_data);
         Ok(bytes)
@@ -41,7 +41,7 @@ impl Metadata {
         let additional_data_len = scanner.read_u32()? as usize;
         let additional_data = scanner.next(additional_data_len)?.to_vec();
         Ok(Metadata {
-            sec,
+            uid: sec,
             additional_data,
         })
     }
@@ -51,8 +51,8 @@ impl Metadata {
 /// encryption of the symmetric key used to encrypt the resource content.
 /// The symmetric key is encrypted using a public key cryptographic scheme
 #[derive(Debug, PartialEq)]
-pub struct Header<'a, A: AsymmetricCrypto, S: SymmetricCrypto> {
-    asymmetric_scheme: &'a A,
+pub struct Header<A: AsymmetricCrypto, S: SymmetricCrypto> {
+    asymmetric_scheme: A,
     /// metadata that are encrypted as part of the header
     metadata: Metadata,
     /// the randomly generated symmetric key used to encrypt the resources
@@ -61,7 +61,7 @@ pub struct Header<'a, A: AsymmetricCrypto, S: SymmetricCrypto> {
     encrypted_symmetric_key: Vec<u8>,
 }
 
-impl<'a, A, S> Header<'a, A, S>
+impl<A, S> Header<A, S>
 where
     A: AsymmetricCrypto,
     S: SymmetricCrypto,
@@ -69,11 +69,11 @@ where
     /// Generate a new encrypted resource header from a uid and
     /// the symmetric key used to encrypt the resource content
     pub fn generate(
-        asymmetric_scheme: &'a A,
         public_key: &<<A as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
         encryption_parameters: Option<&<A as AsymmetricCrypto>::EncryptionParameters>,
         metadata: Metadata,
     ) -> anyhow::Result<Self> {
+        let asymmetric_scheme = A::default();
         let (symmetric_key, encrypted_symmetric_key) =
             asymmetric_scheme.generate_symmetric_key::<S>(public_key, encryption_parameters)?;
         Ok(Header {
@@ -88,7 +88,6 @@ where
     /// See `to_bytes()` for details on the format
     pub fn from_bytes(
         bytes: &[u8],
-        asymmetric_scheme: &'a A,
         private_key: &<<A as AsymmetricCrypto>::KeyPair as KeyPair>::PrivateKey,
     ) -> anyhow::Result<Self> {
         // scan the input bytes
@@ -99,6 +98,7 @@ where
         let encrypted_symmetric_key = scanner.next(encrypted_symmetric_key_size)?.to_vec();
 
         // symmetric key
+        let asymmetric_scheme = A::default();
         let symmetric_key =
             asymmetric_scheme.decrypt_symmetric_key::<S>(private_key, &encrypted_symmetric_key)?;
 
@@ -167,6 +167,11 @@ where
     pub fn symmetric_key(&self) -> &S::Key {
         &self.symmetric_key
     }
+
+    /// The meta data in the header
+    pub fn meta_data(&self) -> &Metadata {
+        &self.metadata
+    }
 }
 
 // Attempt getting the length of this slice as an u32 in 4 endian bytes and
@@ -193,67 +198,55 @@ mod tests {
 
         // Full metadata test
         let metadata_full = Metadata {
-            sec: asymmetric_scheme.generate_random_bytes(32),
+            uid: asymmetric_scheme.generate_random_bytes(32),
             additional_data: asymmetric_scheme.generate_random_bytes(256),
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
-            &asymmetric_scheme,
             &key_pair.public_key,
             None,
             metadata_full.clone(),
         )?;
 
         let bytes = header.as_bytes()?;
-        let header_ = Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(
-            &bytes,
-            &asymmetric_scheme,
-            &key_pair.private_key,
-        )?;
+        let header_ =
+            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, &key_pair.private_key)?;
 
         assert_eq!(&metadata_full, &header_.metadata);
 
         // sec only metadata test
         let metadata_sec = Metadata {
-            sec: asymmetric_scheme.generate_random_bytes(32),
+            uid: asymmetric_scheme.generate_random_bytes(32),
             additional_data: vec![],
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
-            &asymmetric_scheme,
             &key_pair.public_key,
             None,
             metadata_sec.clone(),
         )?;
 
         let bytes = header.as_bytes()?;
-        let header_ = Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(
-            &bytes,
-            &asymmetric_scheme,
-            &key_pair.private_key,
-        )?;
+        let header_ =
+            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, &key_pair.private_key)?;
 
         assert_eq!(&metadata_sec, &header_.metadata);
 
         // no metadata test
         let metadata_empty = Metadata {
-            sec: vec![],
+            uid: vec![],
             additional_data: vec![],
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
-            &asymmetric_scheme,
             &key_pair.public_key,
             None,
             metadata_empty.clone(),
         )?;
 
         let bytes = header.as_bytes()?;
-        let header_ = Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(
-            &bytes,
-            &asymmetric_scheme,
-            &key_pair.private_key,
-        )?;
+        let header_ =
+            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, &key_pair.private_key)?;
 
         assert_eq!(&metadata_empty, &header_.metadata);
         Ok(())
