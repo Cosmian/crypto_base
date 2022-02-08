@@ -6,8 +6,11 @@ use std::{
     vec::Vec,
 };
 
-use aes_gcm::aead::{generic_array::GenericArray, Aead, NewAead, Payload};
 use aes_gcm::Aes256Gcm; // Or `Aes128Gcm`
+use aes_gcm::{
+    aead::{generic_array::GenericArray, Aead, NewAead, Payload},
+    AeadInPlace,
+};
 use rand::{RngCore, SeedableRng};
 use rand_hc::Hc128Rng;
 
@@ -214,7 +217,10 @@ impl SymmetricCrypto for Aes256GcmCrypto {
     }
 
     fn generate_random_bytes(&self, len: usize) -> Vec<u8> {
-        (&mut self.rng.lock().expect("a mutex lock failed")).generate_random_bytes(len)
+        self.rng
+            .lock()
+            .expect("a mutex lock failed")
+            .generate_random_bytes(len)
     }
 
     fn generate_key_from_rnd(rnd_bytes: &[u8]) -> anyhow::Result<Self::Key> {
@@ -222,11 +228,14 @@ impl SymmetricCrypto for Aes256GcmCrypto {
     }
 
     fn generate_key(&self) -> Self::Key {
-        (&mut self.rng.lock().expect("a mutex lock failed")).generate_key()
+        self.rng.lock().expect("a mutex lock failed").generate_key()
     }
 
     fn generate_nonce(&self) -> Self::Nonce {
-        (&mut self.rng.lock().expect("a mutex lock failed")).generate_nonce()
+        self.rng
+            .lock()
+            .expect("a mutex lock failed")
+            .generate_nonce()
     }
 
     fn encrypt(
@@ -321,6 +330,25 @@ pub fn encrypt_combined(
         .map_err(|e| anyhow::anyhow!(e))
 }
 
+/// Encrypts a message in place using a secret key and a public nonce in detached mode:
+/// The a tag authenticating both the confidential
+/// message and non-confidential data, are returned separately
+///
+/// The tag length is `MAC_LENGTH`
+pub fn encrypt_in_place_detached(
+    key: &Key,
+    bytes: &mut [u8],
+    nonce: &Nonce,
+    additional_data: Option<&[u8]>,
+) -> anyhow::Result<Vec<u8>> {
+    let cipher = Aes256Gcm::new(GenericArray::from_slice(&key.0));
+    let additional_data = additional_data.unwrap_or_default();
+    cipher
+        .encrypt_in_place_detached(GenericArray::from_slice(&nonce.0), additional_data, bytes)
+        .map_err(|e| anyhow::anyhow!(e))
+        .map(|t| t.to_vec())
+}
+
 /// Decrypts a message in combined mode: the MAC is appended to the cipher text
 ///
 /// The provided additional data must match those provided during encryption for
@@ -341,6 +369,32 @@ pub fn decrypt_combined(
     };
     cipher
         .decrypt(GenericArray::from_slice(&nonce.0), payload)
+        .map_err(|e| anyhow::anyhow!(e))
+}
+
+/// Decrypts a message in pace in detached mode.
+/// The bytes should not contain the authentication tag.
+///
+/// The provided additional data must match those provided during encryption for
+/// the MAC to verify.
+///
+/// Decryption will never be performed, even partially, before verification.
+pub fn decrypt_in_place_detached(
+    key: &Key,
+    bytes: &mut [u8],
+    tag: &[u8],
+    nonce: &Nonce,
+    additional_data: Option<&[u8]>,
+) -> anyhow::Result<()> {
+    let cipher = Aes256Gcm::new(GenericArray::from_slice(&key.0));
+    let additional_data = additional_data.unwrap_or_default();
+    cipher
+        .decrypt_in_place_detached(
+            GenericArray::from_slice(&nonce.0),
+            additional_data,
+            bytes,
+            GenericArray::from_slice(tag),
+        )
         .map_err(|e| anyhow::anyhow!(e))
 }
 
@@ -385,12 +439,11 @@ mod tests {
         let key = cs_rng.generate_key();
         let bytes = cs_rng.generate_random_bytes(8192);
         let iv = cs_rng.generate_nonce();
-        let ad = cs_rng.generate_random_bytes(47);
         // no additional data
-        let encrypted_result = encrypt_combined(&key, &bytes, &iv, Some(&ad))?;
+        let encrypted_result = encrypt_combined(&key, &bytes, &iv, None)?;
         assert_ne!(encrypted_result, bytes);
         assert_eq!(bytes.len() + MAC_LENGTH, encrypted_result.len());
-        let recovered = decrypt_combined(&key, encrypted_result.as_slice(), &iv, Some(&ad))?;
+        let recovered = decrypt_combined(&key, encrypted_result.as_slice(), &iv, None)?;
         assert_eq!(bytes, recovered);
         // additional data
         let ad = cs_rng.generate_random_bytes(42);
@@ -399,6 +452,32 @@ mod tests {
         assert_eq!(bytes.len() + MAC_LENGTH, encrypted_result.len());
         let recovered = decrypt_combined(&key, encrypted_result.as_slice(), &iv, Some(&ad))?;
         assert_eq!(bytes, recovered);
+        Ok(())
+    }
+
+    #[test]
+    fn test_encryption_decryption_detached() -> anyhow::Result<()> {
+        let mut cs_rng = CsRng::default();
+        let key = cs_rng.generate_key();
+        let bytes = cs_rng.generate_random_bytes(8192);
+        let iv = cs_rng.generate_nonce();
+        // no additional data
+        let mut data = bytes.clone();
+        let tag = encrypt_in_place_detached(&key, &mut data, &iv, None)?;
+        assert_ne!(bytes, data);
+        assert_eq!(bytes.len(), data.len());
+        assert_eq!(MAC_LENGTH, tag.len());
+        decrypt_in_place_detached(&key, &mut data, &tag, &iv, None)?;
+        assert_eq!(bytes, data);
+        // // additional data
+        let ad = cs_rng.generate_random_bytes(42);
+        let mut data = bytes.clone();
+        let tag = encrypt_in_place_detached(&key, &mut data, &iv, Some(&ad))?;
+        assert_ne!(bytes, data);
+        assert_eq!(bytes.len(), data.len());
+        assert_eq!(MAC_LENGTH, tag.len());
+        decrypt_in_place_detached(&key, &mut data, &tag, &iv, Some(&ad))?;
+        assert_eq!(bytes, data);
         Ok(())
     }
 }

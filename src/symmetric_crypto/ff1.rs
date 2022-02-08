@@ -595,7 +595,10 @@ impl SymmetricCrypto for FF1Crypto {
     }
 
     fn generate_random_bytes(&self, len: usize) -> Vec<u8> {
-        (&mut self.rng.lock().expect("a mutex lock failed")).generate_random_bytes(len)
+        self.rng
+            .lock()
+            .expect("a mutex lock failed")
+            .generate_random_bytes(len)
     }
 
     fn generate_key_from_rnd(rnd_bytes: &[u8]) -> anyhow::Result<Self::Key> {
@@ -603,11 +606,14 @@ impl SymmetricCrypto for FF1Crypto {
     }
 
     fn generate_key(&self) -> Self::Key {
-        (&mut self.rng.lock().expect("a mutex lock failed")).generate_key()
+        self.rng.lock().expect("a mutex lock failed").generate_key()
     }
 
     fn generate_nonce(&self) -> Self::Nonce {
-        (&mut self.rng.lock().expect("a mutex lock failed")).generate_nonce()
+        self.rng
+            .lock()
+            .expect("a mutex lock failed")
+            .generate_nonce()
     }
 
     fn encrypt(

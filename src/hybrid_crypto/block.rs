@@ -188,7 +188,7 @@ where
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        (&self.nonce).clone().into()
+        self.nonce.clone().into()
     }
 }
 
