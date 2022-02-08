@@ -8,6 +8,8 @@ use std::{
     vec::Vec,
 };
 
+use super::SymmetricCrypto;
+use crate::symmetric_crypto::Key as _;
 use aes::Aes256;
 use cosmian_fpe::ff1::{FlexibleNumeralString, FF1};
 use itertools::Itertools;
@@ -15,8 +17,6 @@ use num_traits::Bounded;
 use rand::{RngCore, SeedableRng};
 use rand_hc::Hc128Rng;
 use tracing::trace;
-
-use super::SymmetricCrypto;
 
 pub const RECOMMENDED_THRESHOLD: usize = 1_000_000;
 pub const KEY_LENGTH: usize = 32;
@@ -30,11 +30,19 @@ impl super::Key for Key {
     const LENGTH: usize = KEY_LENGTH;
 
     fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        bytes.try_into()
+        Self::try_from_slice(bytes.as_slice())
     }
 
     fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
-        bytes.try_into()
+        let len = bytes.len();
+        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| {
+            anyhow::anyhow!(
+                "Invalid key of length: {}, expected length: {}",
+                len,
+                KEY_LENGTH
+            )
+        })?;
+        Ok(Self(b))
     }
 
     fn as_bytes(&self) -> Vec<u8> {
@@ -46,30 +54,6 @@ impl Key {
     #[must_use]
     pub fn as_array(&self) -> [u8; 32] {
         self.0
-    }
-}
-
-impl TryFrom<Vec<u8>> for Key {
-    type Error = anyhow::Error;
-
-    fn try_from(value: Vec<u8>) -> std::result::Result<Self, Self::Error> {
-        value.as_slice().try_into()
-    }
-}
-
-impl TryFrom<&[u8]> for Key {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
-        let len = value.len();
-        let b: [u8; KEY_LENGTH] = value.try_into().map_err(|_| {
-            anyhow::anyhow!(
-                "Invalid key of length: {}, expected length: {}",
-                len,
-                KEY_LENGTH
-            )
-        })?;
-        Ok(Self(b))
     }
 }
 
@@ -92,11 +76,19 @@ impl super::Nonce for Nonce {
     const LENGTH: usize = NONCE_LENGTH;
 
     fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        bytes.try_into()
+        Self::try_from_slice(bytes.as_slice())
     }
 
     fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
-        bytes.try_into()
+        let len = bytes.len();
+        let b: [u8; NONCE_LENGTH] = bytes.try_into().map_err(|_| {
+            anyhow::anyhow!(
+                "Invalid nonce of length: {}, expected length: {}",
+                len,
+                NONCE_LENGTH
+            )
+        })?;
+        Ok(Self(b))
     }
 
     fn increment(&self, increment: usize) -> Self {
@@ -124,31 +116,6 @@ impl super::Nonce for Nonce {
 
     fn as_bytes(&self) -> Vec<u8> {
         self.0.to_vec()
-    }
-}
-
-impl TryFrom<Vec<u8>> for Nonce {
-    type Error = anyhow::Error;
-
-    fn try_from(value: Vec<u8>) -> std::result::Result<Self, Self::Error> {
-        value.as_slice().try_into()
-    }
-}
-
-impl TryFrom<&[u8]> for Nonce {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
-        let len = value.len();
-
-        let b: [u8; NONCE_LENGTH] = value.try_into().map_err(|_| {
-            anyhow::anyhow!(
-                "Invalid nonce of length: {}, expected length: {}",
-                len,
-                NONCE_LENGTH
-            )
-        })?;
-        Ok(Self(b))
     }
 }
 
@@ -602,7 +569,7 @@ impl SymmetricCrypto for FF1Crypto {
     }
 
     fn generate_key_from_rnd(rnd_bytes: &[u8]) -> anyhow::Result<Self::Key> {
-        Self::Key::try_from(rnd_bytes)
+        Self::Key::try_from_slice(rnd_bytes)
     }
 
     fn generate_key(&self) -> Self::Key {

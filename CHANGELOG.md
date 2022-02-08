@@ -2,12 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+
 ---
 ## [0.4.1] - 2022-02-08
 ### Added
 -- Added AES in place, in detached mode 
 ### Changed
 ### Fixed
+-- Conflicting Try implementations in Symmetric Crypto
 ### Removed
 ---
 

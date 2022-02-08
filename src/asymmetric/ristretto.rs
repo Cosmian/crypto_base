@@ -4,19 +4,19 @@ use std::{
     sync::Mutex,
 };
 
+use super::{AsymmetricCrypto, KeyPair};
+use crate::symmetric_crypto::Nonce as _;
+use crate::{
+    entropy::CsRng,
+    kdf::hkdf_256,
+    symmetric_crypto::{aes_256_gcm_pure, Key, SymmetricCrypto},
+};
 use curve25519_dalek::{
     constants,
     ristretto::{CompressedRistretto, RistrettoPoint},
     scalar::Scalar,
 };
 use rand_core::{CryptoRng, RngCore};
-
-use super::{AsymmetricCrypto, KeyPair};
-use crate::{
-    entropy::CsRng,
-    kdf::hkdf_256,
-    symmetric_crypto::{aes_256_gcm_pure, Key, SymmetricCrypto},
-};
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
@@ -385,7 +385,7 @@ impl AsymmetricCrypto for X25519Crypto {
         let aes = aes_256_gcm_pure::Aes256GcmCrypto::new();
         let nonce_bytes =
             &data[PUBLIC_KEY_LENGTH..PUBLIC_KEY_LENGTH + aes_256_gcm_pure::NONCE_LENGTH];
-        let nonce = aes_256_gcm_pure::Nonce::try_from(nonce_bytes)?;
+        let nonce = aes_256_gcm_pure::Nonce::try_from_slice(nonce_bytes)?;
         aes.decrypt(
             &sym_key,
             &data[PUBLIC_KEY_LENGTH + aes_256_gcm_pure::NONCE_LENGTH..],

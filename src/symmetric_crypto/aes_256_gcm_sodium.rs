@@ -1,16 +1,10 @@
 // This implements AES 256 GCM, using lib sodium
 // and requires an AES native interface on the CPU
 
-use std::{
-    cmp::min,
-    convert::{TryFrom, TryInto},
-    fmt::Display,
-    vec::Vec,
-};
-
-use tracing::debug;
+use std::{cmp::min, convert::TryInto, fmt::Display, vec::Vec};
 
 use super::SymmetricCrypto;
+use crate::symmetric_crypto::Key as _;
 use crate::{
     sodium_bindings::{
         crypto_aead_aes256gcm_ABYTES, crypto_aead_aes256gcm_KEYBYTES,
@@ -21,6 +15,7 @@ use crate::{
     },
     symmetric_crypto::MIN_DATA_LENGTH,
 };
+use tracing::debug;
 
 pub const KEY_LENGTH: usize = crypto_aead_aes256gcm_KEYBYTES as usize;
 pub const NONCE_LENGTH: usize = crypto_aead_aes256gcm_NPUBBYTES as usize;
@@ -33,32 +28,12 @@ impl super::Key for Key {
     const LENGTH: usize = KEY_LENGTH;
 
     fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        bytes.try_into()
+        Self::try_from_slice(bytes.as_slice())
     }
 
     fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
-        bytes.try_into()
-    }
-
-    fn as_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-}
-
-impl TryFrom<Vec<u8>> for Key {
-    type Error = anyhow::Error;
-
-    fn try_from(value: Vec<u8>) -> std::result::Result<Self, Self::Error> {
-        value.as_slice().try_into()
-    }
-}
-
-impl TryFrom<&[u8]> for Key {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
-        let len = value.len();
-        let b: [u8; KEY_LENGTH] = value.try_into().map_err(|_| {
+        let len = bytes.len();
+        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| {
             anyhow::anyhow!(
                 "Invalid key of length: {}, expected length: {}",
                 len,
@@ -66,6 +41,10 @@ impl TryFrom<&[u8]> for Key {
             )
         })?;
         Ok(Self(b))
+    }
+
+    fn as_bytes(&self) -> Vec<u8> {
+        self.0.to_vec()
     }
 }
 
@@ -99,11 +78,19 @@ impl super::Nonce for Nonce {
     const LENGTH: usize = NONCE_LENGTH;
 
     fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        bytes.try_into()
+        Self::try_from_slice(bytes.as_slice())
     }
 
     fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
-        bytes.try_into()
+        let len = bytes.len();
+        let b: [u8; NONCE_LENGTH] = bytes.try_into().map_err(|_| {
+            anyhow::anyhow!(
+                "Invalid nonce of length: {}, expected length: {}",
+                len,
+                NONCE_LENGTH
+            )
+        })?;
+        Ok(Self(b))
     }
 
     fn increment(&self, increment: usize) -> Self {
@@ -120,31 +107,6 @@ impl super::Nonce for Nonce {
 
     fn as_bytes(&self) -> Vec<u8> {
         self.0.to_vec()
-    }
-}
-
-impl TryFrom<Vec<u8>> for Nonce {
-    type Error = anyhow::Error;
-
-    fn try_from(value: Vec<u8>) -> std::result::Result<Self, Self::Error> {
-        value.as_slice().try_into()
-    }
-}
-
-impl TryFrom<&[u8]> for Nonce {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
-        let len = value.len();
-
-        let b: [u8; NONCE_LENGTH] = value.try_into().map_err(|_| {
-            anyhow::anyhow!(
-                "Invalid nonce of length: {}, expected length: {}",
-                len,
-                NONCE_LENGTH
-            )
-        })?;
-        Ok(Self(b))
     }
 }
 
@@ -455,7 +417,7 @@ impl SymmetricCrypto for Aes256GcmCrypto {
     }
 
     fn generate_key_from_rnd(rng_bytes: &[u8]) -> anyhow::Result<Self::Key> {
-        Self::Key::try_from(rng_bytes)
+        Self::Key::try_from_slice(rng_bytes)
     }
 
     fn generate_key(&self) -> Self::Key {

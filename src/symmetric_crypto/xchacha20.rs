@@ -1,10 +1,4 @@
-// #![allow(clippy::cast_possible_truncation)]
-use std::{
-    cmp::min,
-    convert::{TryFrom, TryInto},
-    fmt::Display,
-    vec::Vec,
-};
+use std::{cmp::min, convert::TryInto, fmt::Display, vec::Vec};
 
 use tracing::debug;
 
@@ -28,24 +22,12 @@ impl GenericKey for Key {
     const LENGTH: usize = KEY_LENGTH;
 
     fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        bytes.try_into()
+        Self::try_from_slice(bytes.as_slice())
     }
 
     fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
-        bytes.try_into()
-    }
-
-    fn as_bytes(&self) -> Vec<u8> {
-        self.b.to_vec()
-    }
-}
-
-impl TryFrom<&[u8]> for Key {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
-        let len = value.len();
-        let b: [u8; KEY_LENGTH] = value.try_into().map_err(|_| {
+        let len = bytes.len();
+        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| {
             anyhow::anyhow!(
                 "Invalid key of length: {}, expected length: {}",
                 len,
@@ -54,13 +36,9 @@ impl TryFrom<&[u8]> for Key {
         })?;
         Ok(Self { b })
     }
-}
 
-impl TryFrom<Vec<u8>> for Key {
-    type Error = anyhow::Error;
-
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        value.as_slice().try_into()
+    fn as_bytes(&self) -> Vec<u8> {
+        self.b.to_vec()
     }
 }
 
@@ -85,11 +63,19 @@ impl GenericNonce for Nonce {
     const LENGTH: usize = NONCE_LENGTH;
 
     fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        bytes.try_into()
+        Self::try_from_slice(bytes.as_slice())
     }
 
     fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
-        bytes.try_into()
+        let len = bytes.len();
+        let b: [u8; NONCE_LENGTH] = bytes.try_into().map_err(|_| {
+            anyhow::anyhow!(
+                "Invalid nonce of length: {}, expected length: {}",
+                len,
+                NONCE_LENGTH
+            )
+        })?;
+        Ok(Self { b })
     }
 
     fn increment(&self, increment: usize) -> Self {
@@ -114,31 +100,6 @@ impl GenericNonce for Nonce {
 
     fn as_bytes(&self) -> Vec<u8> {
         self.b.to_vec()
-    }
-}
-
-impl TryFrom<&[u8]> for Nonce {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
-        let len = value.len();
-
-        let b: [u8; NONCE_LENGTH] = value.try_into().map_err(|_| {
-            anyhow::anyhow!(
-                "Invalid nonce of length: {}, expected length: {}",
-                len,
-                NONCE_LENGTH
-            )
-        })?;
-        Ok(Self { b })
-    }
-}
-
-impl TryFrom<Vec<u8>> for Nonce {
-    type Error = anyhow::Error;
-
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        value.as_slice().try_into()
     }
 }
 
