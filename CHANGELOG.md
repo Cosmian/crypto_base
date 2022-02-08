@@ -2,10 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
-
 ---
-## [0.4.1] - 2022-02-08
+## [0.4.2] - 2022-02-08
 ### Added
+-- Added AES in place, in detached mode 
 -- Added AES in place, in detached mode 
 ### Changed
 ### Fixed
@@ -13,6 +13,10 @@ All notable changes to this project will be documented in this file.
 ### Removed
 ---
 
+
+---
+## [0.4.1]
+Yanked
 
 ---
 ## [0.4.0] - 2022-01-31
