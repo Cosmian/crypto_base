@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [0.4.0] - 2022-02-08
+### Added
+-- Added AES in place, in detached mode 
+### Changed
+### Fixed
+### Removed
+---
+
+
+---
+## [0.4.0] - 2022-01-31
+### Added
+### Changed
+-- reworked Hybrid crypto Header and Block
+### Fixed
+### Removed
+---
+
+
+---
 ## [0.3.0] - 2022-01-24
 ### Added
 - Support for encryption parameters on the asymmetric schemes (e.g. ABE)
