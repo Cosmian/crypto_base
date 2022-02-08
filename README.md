@@ -1,3 +1,5 @@
+# crypto_base &emsp; [![Build Status]][actions] [![Latest Version]][crates.io]
+
 This crates implements crypto primitives which are useful for other Cosmian crypto resources
 
 - primes: routines to extract prime numbers up to 2^400
