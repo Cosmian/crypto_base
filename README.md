@@ -1,8 +1,8 @@
 # cosmian_crypto_base &emsp; [![Build Status]][actions] [![Latest Version]][crates.io]
 
 
-[Build Status]: https://img.shields.io/github/workflow/status/Cosmian/cosmian_crypto_base/CI%20checks/main
-[actions]: https://github.com/Cosmian/cosmian_crypto_base/actions?query=branch%3Amain
+[Build Status]: https://img.shields.io/github/workflow/status/Cosmian/crypto_base/CI%20checks/main
+[actions]: https://github.com/Cosmian/crypto_base/actions?query=branch%3Amain
 [Latest Version]: https://img.shields.io/crates/v/cosmian_crypto_base.svg
 [crates.io]: https://crates.io/crates/cosmian_crypto_base
 
