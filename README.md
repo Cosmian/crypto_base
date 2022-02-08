@@ -1,5 +1,11 @@
 # cosmian_crypto_base &emsp; [![Build Status]][actions] [![Latest Version]][crates.io]
 
+
+[Build Status]: https://img.shields.io/github/workflow/status/Cosmian/cosmian_cryto_base/CI%20checks/main
+[actions]: https://github.com/Cosmian/cosmian_cryto_base/actions?query=branch%3Amain
+[Latest Version]: https://img.shields.io/crates/v/cosmian_cryto_base.svg
+[crates.io]: https://crates.io/crates/cosmian_cryto_base
+
 This crates implements crypto primitives which are useful for other Cosmian crypto resources
 
 - primes: routines to extract prime numbers up to 2^400
