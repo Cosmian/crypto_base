@@ -1,4 +1,4 @@
-# crypto_base &emsp; [![Build Status]][actions] [![Latest Version]][crates.io]
+# cosmian_crypto_base &emsp; [![Build Status]][actions] [![Latest Version]][crates.io]
 
 This crates implements crypto primitives which are useful for other Cosmian crypto resources
 
