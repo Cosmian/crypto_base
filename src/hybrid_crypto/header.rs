@@ -20,7 +20,7 @@ use crate::{
 #[derive(Debug, PartialEq, Clone)]
 pub struct Metadata {
     pub uid: Vec<u8>,
-    pub additional_data: Vec<u8>,
+    pub additional_data: Option<Vec<u8>>,
 }
 
 impl Metadata {
@@ -28,8 +28,15 @@ impl Metadata {
     pub fn as_bytes(&self) -> anyhow::Result<Vec<u8>> {
         let mut bytes = u32_len(&self.uid)?.to_vec();
         bytes.extend(&self.uid);
-        bytes.extend(u32_len(&self.additional_data)?.to_vec());
-        bytes.extend(&self.additional_data);
+        match &self.additional_data {
+            Some(ad_data) => {
+                bytes.extend(u32_len(ad_data)?.to_vec());
+                bytes.extend(ad_data);
+            }
+            None => {
+                bytes.extend([0_u8; 4]);
+            }
+        }
         Ok(bytes)
     }
 
@@ -39,7 +46,12 @@ impl Metadata {
         let sec_len = scanner.read_u32()? as usize;
         let sec = scanner.next(sec_len)?.to_vec();
         let additional_data_len = scanner.read_u32()? as usize;
-        let additional_data = scanner.next(additional_data_len)?.to_vec();
+
+        let mut additional_data = None;
+        if additional_data_len > 0 {
+            additional_data = Some(scanner.next(additional_data_len)?.to_vec());
+        }
+
         Ok(Metadata {
             uid: sec,
             additional_data,
@@ -199,7 +211,7 @@ mod tests {
         // Full metadata test
         let metadata_full = Metadata {
             uid: asymmetric_scheme.generate_random_bytes(32),
-            additional_data: asymmetric_scheme.generate_random_bytes(256),
+            additional_data: Some(asymmetric_scheme.generate_random_bytes(256)),
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
@@ -217,7 +229,7 @@ mod tests {
         // sec only metadata test
         let metadata_sec = Metadata {
             uid: asymmetric_scheme.generate_random_bytes(32),
-            additional_data: vec![],
+            additional_data: None,
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
@@ -235,7 +247,7 @@ mod tests {
         // no metadata test
         let metadata_empty = Metadata {
             uid: vec![],
-            additional_data: vec![],
+            additional_data: None,
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
