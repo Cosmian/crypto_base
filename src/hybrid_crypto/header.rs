@@ -47,10 +47,11 @@ impl Metadata {
         let sec = scanner.next(sec_len)?.to_vec();
         let additional_data_len = scanner.read_u32()? as usize;
 
-        let mut additional_data = None;
-        if additional_data_len > 0 {
-            additional_data = Some(scanner.next(additional_data_len)?.to_vec());
-        }
+        let additional_data = if additional_data_len > 0 {
+            Some(scanner.next(additional_data_len)?.to_vec())
+        } else {
+            None
+        };
 
         Ok(Metadata {
             uid: sec,
