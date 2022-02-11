@@ -3,12 +3,22 @@
 All notable changes to this project will be documented in this file.
 
 ---
-## [0.4.2] - 2022-02-08
+## [0.5.0] - 2022-02-11
 ### Added
--- Added AES in place, in detached mode 
 ### Changed
 ### Fixed
--- Conflicting Try implementations in Symmetric Crypto
+- Make optional `additional_data` Metadata field
+### Removed
+---
+
+
+---
+## [0.4.2] - 2022-02-08
+### Added
+- Added AES in place, in detached mode
+### Changed
+### Fixed
+- Conflicting Try implementations in Symmetric Crypto
 ### Removed
 ---
 
@@ -21,7 +31,7 @@ Yanked
 ## [0.4.0] - 2022-01-31
 ### Added
 ### Changed
--- reworked Hybrid crypto Header and Block
+- reworked Hybrid crypto Header and Block
 ### Fixed
 ### Removed
 ---

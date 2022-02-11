@@ -1,8 +1,9 @@
 use crate::symmetric_crypto::{Nonce, SymmetricCrypto};
 
 /// A block holds clear text data that needs to be encrypted.
-/// The max fixed length of clear text is set by the const generic `MAX_CLEAR_TEXT_LENGTH`.
-/// The max block encrypted length is available as `Block::MAX_ENCRYPTED_LENGTH`
+/// The max fixed length of clear text is set by the const generic
+/// `MAX_CLEAR_TEXT_LENGTH`. The max block encrypted length is available as
+/// `Block::MAX_ENCRYPTED_LENGTH`
 ///
 /// When calling `to_encrypted_bytes(...)` an array of bytes is generated that
 /// is made of a `BlockHeder` containing the nonce, the cipher text and  -

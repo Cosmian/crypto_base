@@ -25,7 +25,7 @@ impl Uniform {
     pub fn big_uint(&mut self, bits: usize) -> BigUint {
         let full_bytes = bits / 8;
         let rem = bits - full_bytes * 8;
-        let num_bytes = full_bytes + (rem > 0) as usize;
+        let num_bytes = full_bytes + usize::from(rem > 0);
         let mask: u8 = std::u8::MAX >> ((8 - rem) % 8);
         let mut bytes = vec![0_u8; num_bytes];
         self.rng.fill_bytes(&mut bytes);

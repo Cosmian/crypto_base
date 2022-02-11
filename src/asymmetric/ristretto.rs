@@ -4,19 +4,19 @@ use std::{
     sync::Mutex,
 };
 
-use super::{AsymmetricCrypto, KeyPair};
-use crate::symmetric_crypto::Nonce as _;
-use crate::{
-    entropy::CsRng,
-    kdf::hkdf_256,
-    symmetric_crypto::{aes_256_gcm_pure, Key, SymmetricCrypto},
-};
 use curve25519_dalek::{
     constants,
     ristretto::{CompressedRistretto, RistrettoPoint},
     scalar::Scalar,
 };
 use rand_core::{CryptoRng, RngCore};
+
+use super::{AsymmetricCrypto, KeyPair};
+use crate::{
+    entropy::CsRng,
+    kdf::hkdf_256,
+    symmetric_crypto::{aes_256_gcm_pure, Key, Nonce as _, SymmetricCrypto},
+};
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 

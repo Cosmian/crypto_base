@@ -6,10 +6,11 @@ use crate::{
     symmetric_crypto::{Nonce, SymmetricCrypto},
 };
 
+const EMPTY_ADDITIONAL_DATA: [u8; 4] = [0_u8; 4];
 /// Metadata encrypted as part of the header
 ///
 /// The `uid` is a security parameter:
-///  - when using a stream cipher such as AES or ChaCha20, it uniquely
+///  - when using a stream cipher such as AES or `ChaCha20`, it uniquely
 ///    identifies a resource, such as a file, and is part of the AEAD of every
 ///    block when symmetrically encrypting data. It prevents an attacker from
 ///    moving blocks between resources.
@@ -20,7 +21,7 @@ use crate::{
 #[derive(Debug, PartialEq, Clone)]
 pub struct Metadata {
     pub uid: Vec<u8>,
-    pub additional_data: Vec<u8>,
+    pub additional_data: Option<Vec<u8>>,
 }
 
 impl Metadata {
@@ -28,8 +29,15 @@ impl Metadata {
     pub fn as_bytes(&self) -> anyhow::Result<Vec<u8>> {
         let mut bytes = u32_len(&self.uid)?.to_vec();
         bytes.extend(&self.uid);
-        bytes.extend(u32_len(&self.additional_data)?.to_vec());
-        bytes.extend(&self.additional_data);
+        match &self.additional_data {
+            Some(ad_data) => {
+                bytes.extend(u32_len(ad_data)?.to_vec());
+                bytes.extend(ad_data);
+            }
+            None => {
+                bytes.extend(EMPTY_ADDITIONAL_DATA);
+            }
+        }
         Ok(bytes)
     }
 
@@ -39,7 +47,13 @@ impl Metadata {
         let sec_len = scanner.read_u32()? as usize;
         let sec = scanner.next(sec_len)?.to_vec();
         let additional_data_len = scanner.read_u32()? as usize;
-        let additional_data = scanner.next(additional_data_len)?.to_vec();
+
+        let additional_data = if additional_data_len > 0 {
+            Some(scanner.next(additional_data_len)?.to_vec())
+        } else {
+            None
+        };
+
         Ok(Metadata {
             uid: sec,
             additional_data,
@@ -121,9 +135,9 @@ where
         )?)?;
 
         Ok(Header {
+            asymmetric_scheme,
             metadata,
             symmetric_key,
-            asymmetric_scheme,
             encrypted_symmetric_key,
         })
     }
@@ -179,7 +193,7 @@ where
 fn u32_len(slice: &[u8]) -> anyhow::Result<[u8; 4]> {
     u32::try_from(slice.len())
         .map_err(|_e| anyhow::anyhow!("Slice of bytes is too big to fit in 2^32 bytes"))
-        .map(|i| i.to_be_bytes())
+        .map(u32::to_be_bytes)
 }
 
 #[cfg(test)]
@@ -199,7 +213,7 @@ mod tests {
         // Full metadata test
         let metadata_full = Metadata {
             uid: asymmetric_scheme.generate_random_bytes(32),
-            additional_data: asymmetric_scheme.generate_random_bytes(256),
+            additional_data: Some(asymmetric_scheme.generate_random_bytes(256)),
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
@@ -217,7 +231,7 @@ mod tests {
         // sec only metadata test
         let metadata_sec = Metadata {
             uid: asymmetric_scheme.generate_random_bytes(32),
-            additional_data: vec![],
+            additional_data: None,
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
@@ -235,7 +249,7 @@ mod tests {
         // no metadata test
         let metadata_empty = Metadata {
             uid: vec![],
-            additional_data: vec![],
+            additional_data: None,
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(

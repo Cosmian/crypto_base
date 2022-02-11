@@ -1,14 +1,14 @@
-use crate::symmetric_crypto::Key as _;
-use aes_gcm::Aes256Gcm; // Or `Aes128Gcm`
-use aes_gcm::{
-    aead::{generic_array::GenericArray, Aead, NewAead, Payload},
-    AeadInPlace,
-};
-use rand::{RngCore, SeedableRng};
-use rand_hc::Hc128Rng;
 use std::{cmp::min, convert::TryInto, fmt::Display, sync::Mutex, vec::Vec};
 
+use aes_gcm::{
+    aead::{generic_array::GenericArray, Aead, NewAead, Payload},
+    AeadInPlace, Aes256Gcm,
+}; // Or `Aes128Gcm`
+use rand::{RngCore, SeedableRng};
+use rand_hc::Hc128Rng;
+
 use super::SymmetricCrypto;
+use crate::symmetric_crypto::Key as _;
 
 // This implements AES 256 GCM, using a pure rust interface
 // It will use the AES native interface on the CPU if available
@@ -291,8 +291,8 @@ pub fn encrypt_combined(
         .map_err(|e| anyhow::anyhow!(e))
 }
 
-/// Encrypts a message in place using a secret key and a public nonce in detached mode:
-/// The a tag authenticating both the confidential
+/// Encrypts a message in place using a secret key and a public nonce in
+/// detached mode: The a tag authenticating both the confidential
 /// message and non-confidential data, are returned separately
 ///
 /// The tag length is `MAC_LENGTH`
