@@ -1,5 +1,7 @@
-use aes::cipher::{generic_array::GenericArray, BlockEncrypt, NewBlockCipher};
-use aes::Aes256;
+use aes::{
+    cipher::{generic_array::GenericArray, BlockEncrypt, NewBlockCipher},
+    Aes256,
+};
 
 /// Using AES 256 as a hash function.
 /// Implements the scheme of  S. Matyas, C. Meyer and J. Oseas

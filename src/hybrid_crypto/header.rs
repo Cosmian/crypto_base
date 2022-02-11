@@ -6,10 +6,11 @@ use crate::{
     symmetric_crypto::{Nonce, SymmetricCrypto},
 };
 
+const EMPTY_ADDITIONAL_DATA: [u8; 4] = [0_u8; 4];
 /// Metadata encrypted as part of the header
 ///
 /// The `uid` is a security parameter:
-///  - when using a stream cipher such as AES or ChaCha20, it uniquely
+///  - when using a stream cipher such as AES or `ChaCha20`, it uniquely
 ///    identifies a resource, such as a file, and is part of the AEAD of every
 ///    block when symmetrically encrypting data. It prevents an attacker from
 ///    moving blocks between resources.
@@ -34,7 +35,7 @@ impl Metadata {
                 bytes.extend(ad_data);
             }
             None => {
-                bytes.extend([0_u8; 4]);
+                bytes.extend(EMPTY_ADDITIONAL_DATA);
             }
         }
         Ok(bytes)
@@ -134,9 +135,9 @@ where
         )?)?;
 
         Ok(Header {
+            asymmetric_scheme,
             metadata,
             symmetric_key,
-            asymmetric_scheme,
             encrypted_symmetric_key,
         })
     }
@@ -192,7 +193,7 @@ where
 fn u32_len(slice: &[u8]) -> anyhow::Result<[u8; 4]> {
     u32::try_from(slice.len())
         .map_err(|_e| anyhow::anyhow!("Slice of bytes is too big to fit in 2^32 bytes"))
-        .map(|i| i.to_be_bytes())
+        .map(u32::to_be_bytes)
 }
 
 #[cfg(test)]

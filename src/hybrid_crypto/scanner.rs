@@ -7,6 +7,7 @@ pub struct BytesScanner<'a> {
 }
 
 impl<'a> BytesScanner<'a> {
+    #[must_use]
     pub fn new(bytes: &'a [u8]) -> Self {
         BytesScanner { bytes, start: 0 }
     }

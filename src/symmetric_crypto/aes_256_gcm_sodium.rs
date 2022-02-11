@@ -3,8 +3,9 @@
 
 use std::{cmp::min, convert::TryInto, fmt::Display, vec::Vec};
 
+use tracing::debug;
+
 use super::SymmetricCrypto;
-use crate::symmetric_crypto::Key as _;
 use crate::{
     sodium_bindings::{
         crypto_aead_aes256gcm_ABYTES, crypto_aead_aes256gcm_KEYBYTES,
@@ -13,9 +14,8 @@ use crate::{
         crypto_aead_aes256gcm_encrypt_detached, crypto_aead_aes256gcm_is_available,
         randombytes_buf, sodium_increment, sodium_init,
     },
-    symmetric_crypto::MIN_DATA_LENGTH,
+    symmetric_crypto::{Key as _, MIN_DATA_LENGTH},
 };
-use tracing::debug;
 
 pub const KEY_LENGTH: usize = crypto_aead_aes256gcm_KEYBYTES as usize;
 pub const NONCE_LENGTH: usize = crypto_aead_aes256gcm_NPUBBYTES as usize;

@@ -8,8 +8,6 @@ use std::{
     vec::Vec,
 };
 
-use super::SymmetricCrypto;
-use crate::symmetric_crypto::Key as _;
 use aes::Aes256;
 use cosmian_fpe::ff1::{FlexibleNumeralString, FF1};
 use itertools::Itertools;
@@ -17,6 +15,9 @@ use num_traits::Bounded;
 use rand::{RngCore, SeedableRng};
 use rand_hc::Hc128Rng;
 use tracing::trace;
+
+use super::SymmetricCrypto;
+use crate::symmetric_crypto::Key as _;
 
 pub const RECOMMENDED_THRESHOLD: usize = 1_000_000;
 pub const KEY_LENGTH: usize = 32;
