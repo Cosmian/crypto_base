@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [0.5.1] - 2022-02-21
+### Added
+- Default implementation for MetaData
+### Changed
+- more compact Metadata serialization, aligned with java lib
+### Fixed
+- Checking that Metadata bytes are not empty before deserializing
+### Removed
+---
+
+
+---
 ## [0.5.0] - 2022-02-11
 ### Added
 ### Changed

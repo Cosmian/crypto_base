@@ -6,7 +6,6 @@ use crate::{
     symmetric_crypto::{Nonce, SymmetricCrypto},
 };
 
-const EMPTY_ADDITIONAL_DATA: [u8; 4] = [0_u8; 4];
 /// Metadata encrypted as part of the header
 ///
 /// The `uid` is a security parameter:
@@ -18,7 +17,7 @@ const EMPTY_ADDITIONAL_DATA: [u8; 4] = [0_u8; 4];
 ///
 /// The `additional_data` is not used as a security parameter. It is optional
 /// data (such as index tags) symmetrically encrypted as part of the header.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct Metadata {
     pub uid: Vec<u8>,
     pub additional_data: Option<Vec<u8>>,
@@ -26,36 +25,29 @@ pub struct Metadata {
 
 impl Metadata {
     /// Encode the metadata as a byte array
+    ///
+    /// The first 4 bytes is the u32 length of the UID as big endian bytes
     pub fn as_bytes(&self) -> anyhow::Result<Vec<u8>> {
         let mut bytes = u32_len(&self.uid)?.to_vec();
         bytes.extend(&self.uid);
-        match &self.additional_data {
-            Some(ad_data) => {
-                bytes.extend(u32_len(ad_data)?.to_vec());
-                bytes.extend(ad_data);
-            }
-            None => {
-                bytes.extend(EMPTY_ADDITIONAL_DATA);
-            }
+        if let Some(ad) = &self.additional_data {
+            bytes.extend(ad);
         }
         Ok(bytes)
     }
 
     /// Decode the metadata from a byte array
     pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Metadata> {
+        if bytes.is_empty() {
+            return Ok(Metadata::default());
+        }
         let mut scanner = BytesScanner::new(bytes);
-        let sec_len = scanner.read_u32()? as usize;
-        let sec = scanner.next(sec_len)?.to_vec();
-        let additional_data_len = scanner.read_u32()? as usize;
-
-        let additional_data = if additional_data_len > 0 {
-            Some(scanner.next(additional_data_len)?.to_vec())
-        } else {
-            None
-        };
+        let uid_len = scanner.read_u32()? as usize;
+        let uid = scanner.next(uid_len)?.to_vec();
+        let additional_data = scanner.remainder().to_owned().map(|v| v.to_vec());
 
         Ok(Metadata {
-            uid: sec,
+            uid,
             additional_data,
         })
     }
@@ -204,6 +196,32 @@ mod tests {
         hybrid_crypto::{header::Metadata, Header},
         symmetric_crypto::aes_256_gcm_pure::Aes256GcmCrypto,
     };
+
+    #[test]
+    pub fn test_meta_data() -> anyhow::Result<()> {
+        let asymmetric_scheme = X25519Crypto::default();
+
+        // Full metadata test
+        let metadata_full = Metadata {
+            uid: asymmetric_scheme.generate_random_bytes(32),
+            additional_data: Some(asymmetric_scheme.generate_random_bytes(256)),
+        };
+        assert_eq!(
+            &metadata_full,
+            &Metadata::from_bytes(&metadata_full.as_bytes()?)?
+        );
+
+        // Partial metadata test
+        let metadata_partial = Metadata {
+            uid: asymmetric_scheme.generate_random_bytes(32),
+            additional_data: None,
+        };
+        assert_eq!(
+            &metadata_partial,
+            &Metadata::from_bytes(&metadata_partial.as_bytes()?)?
+        );
+        Ok(())
+    }
 
     #[test]
     pub fn test_header() -> anyhow::Result<()> {
