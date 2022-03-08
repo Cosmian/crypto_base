@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [0.5.2] - 2022-03-08
+### Added
+### Changed
+### Fixed
+- [wasm-bindgen] Bad implicit type used in symmetric encryption (u32 instead of u64 for additional data)
+### Removed
+---
+
+
+---
 ## [0.5.1] - 2022-02-21
 ### Added
 - Default implementation for MetaData
