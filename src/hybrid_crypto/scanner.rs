@@ -38,7 +38,6 @@ impl<'a> BytesScanner<'a> {
     }
 
     /// Returns the remainder of the slice
-    #[allow(dead_code)]
     pub fn remainder(&mut self) -> Option<&'a [u8]> {
         if self.start >= self.bytes.len() {
             None
@@ -47,5 +46,10 @@ impl<'a> BytesScanner<'a> {
             self.start = self.bytes.len();
             Some(remainder)
         }
+    }
+
+    /// Whether there are more bytes to read
+    pub fn has_more(&self) -> bool {
+        self.start < self.bytes.len()
     }
 }
