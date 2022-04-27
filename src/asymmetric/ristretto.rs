@@ -1,75 +1,82 @@
-use std::{
-    convert::{TryFrom, TryInto},
-    fmt::Display,
-    sync::Mutex,
+use super::{AsymmetricCrypto, KeyPair};
+use crate::{
+    entropy::CsRng,
+    symmetric_crypto::{aes_256_gcm_pure, Nonce as _, SymmetricCrypto},
+    Error, Key,
 };
-
 use curve25519_dalek::{
     constants,
     ristretto::{CompressedRistretto, RistrettoPoint},
     scalar::Scalar,
 };
+use log::error;
 use rand_core::{CryptoRng, RngCore};
-
-use super::{AsymmetricCrypto, KeyPair};
-use crate::{
-    entropy::CsRng,
-    kdf::hkdf_256,
-    symmetric_crypto::{aes_256_gcm_pure, Key, Nonce as _, SymmetricCrypto},
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt::Display,
+    ops::{DerefMut, Mul},
+    sync::Mutex,
 };
-
-const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
-
-/// For ECIES, cipher text needs to store:
-//
-// - the public key of the ephemeral keypair
-// - the AES nonce/iv
-// - the AES MAC
-pub const ECIES_ENCRYPTION_OVERHEAD: usize =
-    PUBLIC_KEY_LENGTH + aes_256_gcm_pure::NONCE_LENGTH + aes_256_gcm_pure::MAC_LENGTH;
-
-pub const PRIVATE_KEY_LENGTH: usize = 32;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct X25519PrivateKey(Scalar);
 
-impl X25519PrivateKey {
-    #[must_use]
-    pub fn as_bytes(&self) -> [u8; 32] {
-        self.0.as_bytes().to_owned()
+impl Key for X25519PrivateKey {
+    const LENGTH: usize = 32;
+
+    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        X25519PrivateKey(Scalar::random(rng))
     }
 
-    pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        X25519PrivateKey(Scalar::random(rng))
+    #[must_use]
+    fn as_bytes(&self) -> Vec<u8> {
+        self.0.as_bytes().to_vec()
+    }
+
+    fn parse(bytes: Vec<u8>) -> Result<Self, Error> {
+        Self::try_from(bytes)
+    }
+}
+
+impl TryFrom<Vec<u8>> for X25519PrivateKey {
+    type Error = Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from(bytes.as_slice())
     }
 }
 
 impl TryFrom<&[u8]> for X25519PrivateKey {
-    type Error = anyhow::Error;
+    type Error = Error;
 
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
-        let len = value.len();
-        let bytes: [u8; PRIVATE_KEY_LENGTH] = value.try_into().map_err(|_e| {
-            anyhow::anyhow!(
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        let len = bytes.len();
+        let bytes: [u8; <Self>::LENGTH] = bytes.try_into().map_err(|_e| {
+            error!(
                 "Invalid private key of length: {}, expected length: {}",
                 len,
-                PRIVATE_KEY_LENGTH
-            )
+                <Self>::LENGTH,
+            );
+            Error::KeyParseError
         })?;
-        let scalar = Scalar::from_canonical_bytes(bytes)
-            .ok_or_else(|| anyhow::anyhow!("Invalid private key bytes"))?;
+        let scalar = Scalar::from_canonical_bytes(bytes).ok_or_else(|| {
+            error!("Invalid private key bytes");
+            Error::KeyParseError
+        })?;
         Ok(X25519PrivateKey(scalar))
     }
 }
 
 /// Parse from an hex encoded String
 impl TryFrom<&str> for X25519PrivateKey {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
-        let bytes = hex::decode(value)
-            .map_err(|e| anyhow::anyhow!("Invalid hex encoded private key: {}", e))?;
-        X25519PrivateKey::try_from(bytes.as_slice())
+        let bytes = hex::decode(value).map_err(|e| {
+            error!("Invalid hex encoded private key: {}", e);
+            Error::KeyParseError
+        })?;
+        X25519PrivateKey::try_from(bytes)
     }
 }
 
@@ -80,12 +87,13 @@ impl Display for X25519PrivateKey {
     }
 }
 
-pub const PUBLIC_KEY_LENGTH: usize = 32; //compressed
-
 #[derive(Clone, PartialEq, Debug)]
 pub struct X25519PublicKey(RistrettoPoint);
 
 impl X25519PublicKey {
+    pub const LENGTH: usize = 32;
+
+    //compressed
     #[must_use]
     pub fn as_bytes(&self) -> [u8; 32] {
         self.0.compress().as_bytes().to_owned()
@@ -99,32 +107,36 @@ impl From<&X25519PrivateKey> for X25519PublicKey {
 }
 
 impl TryFrom<&[u8]> for X25519PublicKey {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
         let len = value.len();
-        if len != PUBLIC_KEY_LENGTH {
-            anyhow::bail!(
+        if len != <X25519PublicKey>::LENGTH {
+            error!(
                 "Invalid key of length: {}, expected length: {}",
                 len,
-                PUBLIC_KEY_LENGTH
-            )
+                <X25519PublicKey>::LENGTH
+            );
+            return Err(Error::KeyParseError);
         };
         let compressed = CompressedRistretto::from_slice(value);
-        let point = compressed
-            .decompress()
-            .ok_or_else(|| anyhow::anyhow!("Could nos decompress the Ristretto point"))?;
+        let point = compressed.decompress().ok_or_else(|| {
+            error!("Could not decompress the Ristretto point");
+            Error::KeyParseError
+        })?;
         Ok(X25519PublicKey(point))
     }
 }
 
 /// Parse from an hex encoded String
 impl TryFrom<&str> for X25519PublicKey {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
-        let bytes = hex::decode(value)
-            .map_err(|e| anyhow::anyhow!("Invalid hex encoded public key: {}", e))?;
+        let bytes = hex::decode(value).map_err(|e| {
+            error!("Invalid hex encoded public key: {}", e);
+            Error::KeyParseError
+        })?;
         X25519PublicKey::try_from(bytes.as_slice())
     }
 }
@@ -136,6 +148,22 @@ impl Display for X25519PublicKey {
     }
 }
 
+impl<'a, 'b> Mul<&'a X25519PrivateKey> for &'b X25519PublicKey {
+    type Output = X25519PublicKey;
+
+    fn mul(self, rhs: &'a X25519PrivateKey) -> Self::Output {
+        X25519PublicKey(self.0 * rhs.0)
+    }
+}
+
+impl<'a> Mul<&'a X25519PrivateKey> for X25519PublicKey {
+    type Output = X25519PublicKey;
+
+    fn mul(self, rhs: &'a X25519PrivateKey) -> Self::Output {
+        X25519PublicKey(self.0 * rhs.0)
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct X25519KeyPair {
     pub private_key: X25519PrivateKey,
@@ -144,9 +172,8 @@ pub struct X25519KeyPair {
 
 impl X25519KeyPair {
     pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> X25519KeyPair {
-        let scalar = Scalar::random(rng);
-        let public_key = X25519PublicKey(&scalar * &constants::RISTRETTO_BASEPOINT_TABLE);
-        let private_key = X25519PrivateKey(scalar);
+        let private_key = X25519PrivateKey::new(rng);
+        let public_key = X25519PublicKey::from(&private_key);
         X25519KeyPair {
             private_key,
             public_key,
@@ -172,15 +199,15 @@ impl TryFrom<&[u8]> for X25519KeyPair {
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let len = value.len();
-        if len != PRIVATE_KEY_LENGTH + PUBLIC_KEY_LENGTH {
+        if len != <X25519PrivateKey>::LENGTH + <X25519PublicKey>::LENGTH {
             anyhow::bail!(
                 "Invalid key pair of length: {}, expected length: {}",
                 len,
-                PRIVATE_KEY_LENGTH + PUBLIC_KEY_LENGTH
+                <X25519PrivateKey>::LENGTH + <X25519PublicKey>::LENGTH
             );
         }
-        let private_key = X25519PrivateKey::try_from(&value[0..PRIVATE_KEY_LENGTH])?;
-        let public_key = X25519PublicKey::try_from(&value[PRIVATE_KEY_LENGTH..])?;
+        let private_key = X25519PrivateKey::try_from(&value[0..<X25519PrivateKey>::LENGTH])?;
+        let public_key = X25519PublicKey::try_from(&value[<X25519PrivateKey>::LENGTH..])?;
         Ok(X25519KeyPair {
             private_key,
             public_key,
@@ -217,6 +244,14 @@ impl PartialEq for X25519Crypto {
 }
 
 impl X25519Crypto {
+    /// For ECIES, cipher text needs to store:
+    //
+    // - the public key of the ephemeral keypair
+    // - the AES nonce/iv
+    // - the AES MAC
+    pub const ENCRYPTION_OVERHEAD: usize =
+        <X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH + aes_256_gcm_pure::MAC_LENGTH;
+
     /// Generate a 256 bit symmetric key used with ECIES encryption
     pub fn sym_key_from_public_key(
         ephemeral_keypair: &X25519KeyPair, // (y, gʸ)
@@ -225,11 +260,13 @@ impl X25519Crypto {
         //calculate the shared point: (gˣ)ʸ
         let point = public_key.0 * ephemeral_keypair.private_key.0;
         // create a 64 bytes master key using gʸ and the shared point
-        let mut master = [0_u8; 2 * PUBLIC_KEY_LENGTH];
-        master[..PUBLIC_KEY_LENGTH].clone_from_slice(&ephemeral_keypair.public_key.as_bytes());
-        master[PUBLIC_KEY_LENGTH..].clone_from_slice(&point.compress().to_bytes());
+        let mut master = [0_u8; 2 * <X25519PublicKey>::LENGTH];
+        master[..<X25519PublicKey>::LENGTH]
+            .clone_from_slice(&ephemeral_keypair.public_key.as_bytes());
+        master[<X25519PublicKey>::LENGTH..].clone_from_slice(&point.compress().to_bytes());
         //Derive a 256 bit key using HKDF
-        hkdf_256(&master, HKDF_INFO)
+        //hkdf_256(&master, HKDF_INFO)
+        Ok([0u8; 32])
     }
 
     /// Generate a 256 bit symmetric key used with ECIES decryption
@@ -240,16 +277,21 @@ impl X25519Crypto {
         //calculate the shared point: (gʸ)ˣ
         let point = private_key.0 * ephemeral_public_key.0;
         // create a 64 bytes master key using gʸ and the shared point
-        let mut master = [0_u8; 2 * PUBLIC_KEY_LENGTH];
-        master[..PUBLIC_KEY_LENGTH].clone_from_slice(&ephemeral_public_key.as_bytes());
-        master[PUBLIC_KEY_LENGTH..].clone_from_slice(&point.compress().to_bytes());
+        let mut master = [0_u8; 2 * <X25519PublicKey>::LENGTH];
+        master[..<X25519PublicKey>::LENGTH].clone_from_slice(&ephemeral_public_key.as_bytes());
+        master[<X25519PublicKey>::LENGTH..].clone_from_slice(&point.compress().to_bytes());
         //Derive a 256 bit key using HKDF
-        hkdf_256(&master, HKDF_INFO)
+        //hkdf_256(&master, HKDF_INFO)
+        Ok([0u8; 32])
     }
 
     pub fn new_private_key(&self) -> X25519PrivateKey {
-        let rng = &mut *self.rng.lock().expect("a mutex lock failed");
-        X25519PrivateKey::new(rng)
+        X25519PrivateKey::new(
+            self.rng
+                .lock()
+                .expect("Could not get a hold on the mutex")
+                .deref_mut(),
+        )
     }
 
     pub fn fill_bytes(&self, dest: &mut [u8]) {
@@ -258,7 +300,7 @@ impl X25519Crypto {
     }
 }
 
-impl AsymmetricCrypto for X25519Crypto {
+impl<'a> AsymmetricCrypto for X25519Crypto {
     type EncryptionParameters = ();
     type KeyPair = X25519KeyPair;
     type KeyPairGenerationParameters = ();
@@ -313,8 +355,11 @@ impl AsymmetricCrypto for X25519Crypto {
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         data: &[u8],
-    ) -> anyhow::Result<S::Key> {
-        S::Key::parse(self.decrypt(private_key, data)?)
+    ) -> Result<S::Key, Error> {
+        S::Key::parse(self.decrypt(private_key, data).map_err(|err| {
+            error!("{:?}", err);
+            Error::DecryptionError
+        })?)
     }
 
     /// A utility function to generate random bytes from an uniform distribution
@@ -328,7 +373,7 @@ impl AsymmetricCrypto for X25519Crypto {
 
     /// The encrypted message length
     fn encrypted_message_length(&self, clear_text_message_length: usize) -> usize {
-        clear_text_message_length + ECIES_ENCRYPTION_OVERHEAD
+        clear_text_message_length + <Self>::ENCRYPTION_OVERHEAD
     }
 
     /// Encrypt a message using ECIES
@@ -347,7 +392,7 @@ impl AsymmetricCrypto for X25519Crypto {
         let aes = aes_256_gcm_pure::Aes256GcmCrypto::new();
         let nonce = aes.generate_nonce();
         //prepare the result
-        let mut result: Vec<u8> = Vec::with_capacity(data.len() + ECIES_ENCRYPTION_OVERHEAD);
+        let mut result: Vec<u8> = Vec::with_capacity(data.len() + <Self>::ENCRYPTION_OVERHEAD);
         result.extend_from_slice(&ephemeral_keypair.public_key.as_bytes());
         result.extend_from_slice(&nonce.0);
         result.extend(aes.encrypt(&sym_key, data, &nonce, None)?);
@@ -356,10 +401,10 @@ impl AsymmetricCrypto for X25519Crypto {
 
     /// The decrypted message length
     fn clear_text_message_length(encrypted_message_length: usize) -> usize {
-        if encrypted_message_length <= ECIES_ENCRYPTION_OVERHEAD {
+        if encrypted_message_length <= <Self>::ENCRYPTION_OVERHEAD {
             0
         } else {
-            encrypted_message_length - ECIES_ENCRYPTION_OVERHEAD
+            encrypted_message_length - <Self>::ENCRYPTION_OVERHEAD
         }
     }
 
@@ -370,25 +415,25 @@ impl AsymmetricCrypto for X25519Crypto {
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         data: &[u8],
     ) -> anyhow::Result<Vec<u8>> {
-        if data.len() < ECIES_ENCRYPTION_OVERHEAD {
+        if data.len() < <Self>::ENCRYPTION_OVERHEAD {
             anyhow::bail!("decryption failed: message is too short");
         }
-        if data.len() == ECIES_ENCRYPTION_OVERHEAD {
+        if data.len() == <Self>::ENCRYPTION_OVERHEAD {
             return Ok(vec![]);
         }
         // gʸ
-        let ephemeral_public_key_bytes = &data[0..PUBLIC_KEY_LENGTH];
+        let ephemeral_public_key_bytes = &data[0..<X25519PublicKey>::LENGTH];
         let ephemeral_public_key = X25519PublicKey::try_from(ephemeral_public_key_bytes)?;
         let sym_key_bytes = Self::sym_key_from_private_key(&ephemeral_public_key, private_key)?;
         // use the pure rust aes implementation
         let sym_key = aes_256_gcm_pure::Key(sym_key_bytes);
         let aes = aes_256_gcm_pure::Aes256GcmCrypto::new();
-        let nonce_bytes =
-            &data[PUBLIC_KEY_LENGTH..PUBLIC_KEY_LENGTH + aes_256_gcm_pure::NONCE_LENGTH];
+        let nonce_bytes = &data
+            [<X25519PublicKey>::LENGTH..<X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH];
         let nonce = aes_256_gcm_pure::Nonce::try_from_slice(nonce_bytes)?;
         aes.decrypt(
             &sym_key,
-            &data[PUBLIC_KEY_LENGTH + aes_256_gcm_pure::NONCE_LENGTH..],
+            &data[<X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH..],
             &nonce,
             None,
         )
@@ -399,29 +444,27 @@ impl AsymmetricCrypto for X25519Crypto {
 mod test {
     use std::convert::TryFrom;
 
-    use super::{AsymmetricCrypto, KeyPair};
-    use crate::{
-        asymmetric::ristretto::ECIES_ENCRYPTION_OVERHEAD, symmetric_crypto::aes_256_gcm_pure,
-    };
+    use super::{AsymmetricCrypto, KeyPair, X25519Crypto, X25519PrivateKey, X25519PublicKey};
+    use crate::{symmetric_crypto::aes_256_gcm_pure, Key};
 
     #[test]
     fn test_generate_key_pair() {
         let crypto = super::X25519Crypto::new();
         let key_pair_1 = crypto.generate_key_pair(None).unwrap();
         assert_ne!(
-            &[0_u8; super::PRIVATE_KEY_LENGTH],
+            &[0_u8; <X25519PrivateKey>::LENGTH],
             key_pair_1.private_key.0.as_bytes()
         );
         assert_ne!(
-            [0_u8; super::PUBLIC_KEY_LENGTH],
+            [0_u8; <X25519PublicKey>::LENGTH],
             key_pair_1.public_key.as_bytes()
         );
         assert_eq!(
-            super::PRIVATE_KEY_LENGTH as usize,
+            <X25519PrivateKey>::LENGTH as usize,
             key_pair_1.private_key.0.as_bytes().len()
         );
         assert_eq!(
-            super::PUBLIC_KEY_LENGTH as usize,
+            <X25519PublicKey>::LENGTH as usize,
             key_pair_1.public_key.as_bytes().len()
         );
         let key_pair_2 = crypto.generate_key_pair(None).unwrap();
@@ -459,7 +502,7 @@ mod test {
             .encrypt(&key_pair.public_key, None, &random_msg)
             .unwrap();
         assert_eq!(
-            4096_usize + ECIES_ENCRYPTION_OVERHEAD,
+            4096_usize + <X25519Crypto>::ENCRYPTION_OVERHEAD,
             crypto.encrypted_message_length(random_msg.len())
         );
         assert_eq!(

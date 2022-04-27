@@ -202,7 +202,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::Block;
-    use crate::symmetric_crypto::aes_256_gcm_pure::{Aes256GcmCrypto, CsRng};
+    use crate::{
+        entropy::CsRng,
+        symmetric_crypto::aes_256_gcm_pure::{Aes256GcmCrypto, Key},
+        Key as _,
+    };
 
     const MAX_CLEAR_TEXT_LENGTH: usize = 4096;
     type Bl = Block<Aes256GcmCrypto, MAX_CLEAR_TEXT_LENGTH>;
@@ -213,7 +217,7 @@ mod tests {
         assert!(b.clear_text().is_empty());
 
         let mut cs_rng = CsRng::default();
-        let symmetric_key = cs_rng.generate_key();
+        let symmetric_key = Key::new(&mut cs_rng);
         let uid = [1_u8; 32];
         // let iv = cs_rng.generate_nonce();
         let encrypted_bytes = b.to_encrypted_bytes(&symmetric_key, &uid, 1)?;
@@ -226,7 +230,7 @@ mod tests {
     #[test]
     fn test_full_block() -> anyhow::Result<()> {
         let mut cs_rng = CsRng::default();
-        let symmetric_key = cs_rng.generate_key();
+        let symmetric_key = Key::new(&mut cs_rng);
         let uid = [1_u8; 32];
 
         let mut b = Bl::new();
@@ -253,7 +257,7 @@ mod tests {
     #[test]
     fn test_partial_block() -> anyhow::Result<()> {
         let mut cs_rng = CsRng::default();
-        let symmetric_key = cs_rng.generate_key();
+        let symmetric_key = Key::new(&mut cs_rng);
         let uid = [1_u8; 32];
 
         let mut b = Bl::new();

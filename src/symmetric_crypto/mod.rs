@@ -14,11 +14,13 @@ use std::{
     vec::Vec,
 };
 
+use crate::{entropy::CsRng, Error, Key};
+
 pub const MIN_DATA_LENGTH: usize = 1;
 
 pub trait Nonce: Into<Vec<u8>> + Clone + PartialEq + Display + Debug + Sync + Send {
     const LENGTH: usize;
-
+    fn new(rng: &mut CsRng) -> Self;
     fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self>;
     fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self>;
     #[must_use]
@@ -26,17 +28,6 @@ pub trait Nonce: Into<Vec<u8>> + Clone + PartialEq + Display + Debug + Sync + Se
     #[must_use]
     fn xor(&self, b2: &[u8]) -> Self;
     fn as_bytes(&self) -> Vec<u8>;
-}
-
-pub trait Key: Into<Vec<u8>> + Clone + PartialEq + Display + Debug + Sync + Send {
-    const LENGTH: usize;
-    fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self>;
-    fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self>;
-    fn as_bytes(&self) -> Vec<u8>;
-    fn parse(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        Self::try_from(bytes)
-            .map_err(|_e| anyhow::anyhow!("failed parsing the symmetric key from bytes"))
-    }
 }
 
 pub trait SymmetricCrypto: Send + Sync + Default {
@@ -53,7 +44,7 @@ pub trait SymmetricCrypto: Send + Sync + Default {
     fn generate_random_bytes(&self, len: usize) -> Vec<u8>;
 
     // rnd_bytes must be [u8;RANDOM_LENGTH], but this need const generic
-    fn generate_key_from_rnd(rnd_bytes: &[u8]) -> anyhow::Result<Self::Key>;
+    fn generate_key_from_rnd(rnd_bytes: &[u8]) -> Result<Self::Key, Error>;
 
     fn generate_key(&self) -> Self::Key;
 

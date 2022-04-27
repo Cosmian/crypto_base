@@ -2,7 +2,19 @@ pub mod ristretto;
 
 use std::vec::Vec;
 
-use crate::symmetric_crypto::SymmetricCrypto;
+use crate::{symmetric_crypto::SymmetricCrypto, Error};
+
+pub trait PrivateKey {
+    const LENGTH: usize;
+    fn new() -> Self;
+    fn as_bytes(&self) -> Vec<u8>;
+}
+
+pub trait PublicKey {
+    const LENGTH: usize;
+    fn new() -> Self;
+    fn as_bytes(&self) -> Vec<u8>;
+}
 
 pub trait KeyPair {
     type PublicKey;
@@ -58,7 +70,7 @@ pub trait AsymmetricCrypto: Send + Sync + Default {
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         encrypted_symmetric_key: &[u8],
-    ) -> anyhow::Result<S::Key>;
+    ) -> Result<S::Key, Error>;
 
     /// A utility function to generate random bytes from an uniform distribution
     /// using a cryptographically secure RNG

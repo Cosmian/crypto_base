@@ -9,10 +9,17 @@ pub struct CsRng {
 
 impl CsRng {
     #[must_use]
-    pub fn new() -> CsRng {
-        CsRng {
+    pub fn new() -> Self {
+        Self {
             rng: Hc128Rng::from_entropy(),
         }
+    }
+
+    /// Generate an vector of random bytes
+    pub fn generate_random_bytes(&mut self, len: usize) -> Vec<u8> {
+        let mut bytes = vec![0_u8; len];
+        self.rng.fill_bytes(&mut bytes);
+        bytes
     }
 }
 

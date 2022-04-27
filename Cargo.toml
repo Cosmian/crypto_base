@@ -23,6 +23,7 @@ getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4"
 hkdf = "0.12"
 itertools = "0.10"
+log = "0.4.16"
 num-bigint = { version = "0.4", features = ["rand", "serde"] }
 num-traits = "0.2"
 rand = "0.8"
@@ -30,6 +31,7 @@ rand_core = { version = "0.5", features = ["getrandom"] }
 rand_distr = "0.4"
 rand_hc = "0.3"
 sha2 = "0.10"
+thiserror = "1.0.30"
 tracing = "0.1"
 
 [dev-dependencies]

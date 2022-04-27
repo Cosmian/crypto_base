@@ -3,6 +3,7 @@ use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
     fmt::Display,
+    ops::DerefMut,
     str::FromStr,
     sync::Mutex,
     vec::Vec,
@@ -11,13 +12,17 @@ use std::{
 use aes::Aes256;
 use cosmian_fpe::ff1::{FlexibleNumeralString, FF1};
 use itertools::Itertools;
+use log::error;
 use num_traits::Bounded;
-use rand::{RngCore, SeedableRng};
-use rand_hc::Hc128Rng;
+use rand_core::{CryptoRng, RngCore};
 use tracing::trace;
 
 use super::SymmetricCrypto;
-use crate::symmetric_crypto::Key as _;
+use crate::{
+    entropy::CsRng,
+    symmetric_crypto::{Key as _, Nonce as _},
+    Error,
+};
 
 pub const RECOMMENDED_THRESHOLD: usize = 1_000_000;
 pub const KEY_LENGTH: usize = 32;
@@ -30,20 +35,11 @@ pub struct Key(pub [u8; KEY_LENGTH]);
 impl super::Key for Key {
     const LENGTH: usize = KEY_LENGTH;
 
-    fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        Self::try_from_slice(bytes.as_slice())
-    }
-
-    fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
-        let len = bytes.len();
-        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| {
-            anyhow::anyhow!(
-                "Invalid key of length: {}, expected length: {}",
-                len,
-                KEY_LENGTH
-            )
-        })?;
-        Ok(Self(b))
+    /// Generate a new symmetric random `Key`
+    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        let mut key = Key([0_u8; KEY_LENGTH]);
+        rng.fill_bytes(&mut key.0);
+        key
     }
 
     fn as_bytes(&self) -> Vec<u8> {
@@ -51,6 +47,29 @@ impl super::Key for Key {
     }
 }
 
+impl TryFrom<Vec<u8>> for Key {
+    type Error = Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from(bytes.as_slice())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for Key {
+    type Error = Error;
+
+    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+        let len = bytes.len();
+        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| {
+            error!(
+                "Invalid key of length: {}, expected length: {}",
+                len, KEY_LENGTH
+            );
+            Error::KeyParseError
+        })?;
+        Ok(Self(b))
+    }
+}
 impl Key {
     #[must_use]
     pub fn as_array(&self) -> [u8; 32] {
@@ -75,6 +94,13 @@ pub struct Nonce(pub [u8; NONCE_LENGTH]);
 
 impl super::Nonce for Nonce {
     const LENGTH: usize = NONCE_LENGTH;
+
+    /// Generate a new symmetric random `Nonce`
+    fn new(rng: &mut CsRng) -> Self {
+        let mut key = Nonce([0_u8; NONCE_LENGTH]);
+        rng.fill_bytes(&mut key.0);
+        key
+    }
 
     fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
         Self::try_from_slice(bytes.as_slice())
@@ -569,19 +595,16 @@ impl SymmetricCrypto for FF1Crypto {
             .generate_random_bytes(len)
     }
 
-    fn generate_key_from_rnd(rnd_bytes: &[u8]) -> anyhow::Result<Self::Key> {
-        Self::Key::try_from_slice(rnd_bytes)
+    fn generate_key_from_rnd(rnd_bytes: &[u8]) -> Result<Self::Key, Error> {
+        Self::Key::try_from(rnd_bytes)
     }
 
     fn generate_key(&self) -> Self::Key {
-        self.rng.lock().expect("a mutex lock failed").generate_key()
+        Key::new(self.rng.lock().expect("a mutex lock failed").deref_mut())
     }
 
     fn generate_nonce(&self) -> Self::Nonce {
-        self.rng
-            .lock()
-            .expect("a mutex lock failed")
-            .generate_nonce()
+        Nonce::new(&mut self.rng.lock().expect("a mutex lock failed"))
     }
 
     fn encrypt(
@@ -602,55 +625,6 @@ impl SymmetricCrypto for FF1Crypto {
         _additional_data: Option<&[u8]>,
     ) -> anyhow::Result<Vec<u8>> {
         Self::decrypt_u8(&key.0, &[], 256, bytes.to_vec())
-    }
-}
-
-/// A cryptographically secure RNG for use with AES 256
-/// Using this struct avoids having to
-/// gather entropy every time which is slow when
-/// generating Nonces
-pub struct CsRng {
-    rng: Hc128Rng,
-}
-
-impl CsRng {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            rng: Hc128Rng::from_entropy(),
-        }
-    }
-
-    /// Generate an vector of random bytes
-    pub fn generate_random_bytes(&mut self, len: usize) -> Vec<u8> {
-        let mut bytes = vec![0_u8; len];
-        self.rng.fill_bytes(&mut bytes);
-        bytes
-    }
-
-    /// Fill `dest ` with random bytes
-    pub fn fill_bytes(&mut self, dest: &mut [u8]) {
-        self.rng.fill_bytes(dest);
-    }
-
-    /// Generate a fresh nonce
-    pub fn generate_nonce(&mut self) -> Nonce {
-        let mut nonce = Nonce([0_u8; NONCE_LENGTH]);
-        self.rng.fill_bytes(&mut nonce.0);
-        nonce
-    }
-
-    /// Generate a new symmetric random `Key`
-    pub fn generate_key(&mut self) -> Key {
-        let mut key = Key([0_u8; KEY_LENGTH]);
-        self.rng.fill_bytes(&mut key.0);
-        key
-    }
-}
-
-impl Default for CsRng {
-    fn default() -> Self {
-        CsRng::new()
     }
 }
 
