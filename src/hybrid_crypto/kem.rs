@@ -1,7 +1,3 @@
-use std::convert::TryFrom;
-
-use log::error;
-
 use crate::{
     asymmetric::{
         ristretto::{X25519Crypto, X25519PrivateKey, X25519PublicKey},
@@ -12,10 +8,12 @@ use crate::{
     symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, Nonce, SymmetricCrypto},
     Key,
 };
+use log::error;
+use std::convert::TryFrom;
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
-struct ElGammalKemAesX25519 {
+pub struct ElGammalKemAesX25519 {
     x25519_scheme: X25519Crypto,
 }
 

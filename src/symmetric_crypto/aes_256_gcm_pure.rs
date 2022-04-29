@@ -11,7 +11,6 @@ use aes_gcm::{
     aead::{generic_array::GenericArray, Aead, NewAead, Payload},
     AeadInPlace, Aes256Gcm,
 }; // Or `Aes128Gcm`
-use log::error;
 use rand_core::{CryptoRng, RngCore};
 
 use crate::{
@@ -71,12 +70,9 @@ impl<'a> TryFrom<&'a [u8]> for Key {
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
         let len = bytes.len();
-        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| {
-            error!(
-                "Invalid key of length: {}, expected length: {}",
-                len, KEY_LENGTH
-            );
-            Error::KeyParseError
+        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
+            given: len,
+            expected: KEY_LENGTH,
         })?;
         Ok(Self(b))
     }
@@ -100,18 +96,15 @@ impl super::Nonce for Nonce {
         nonce
     }
 
-    fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Error> {
         Self::try_from_slice(bytes.as_slice())
     }
 
-    fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
+    fn try_from_slice(bytes: &[u8]) -> Result<Self, Error> {
         let len = bytes.len();
-        let b: [u8; NONCE_LENGTH] = bytes.try_into().map_err(|_| {
-            anyhow::anyhow!(
-                "Invalid nonce of length: {}, expected length: {}",
-                len,
-                NONCE_LENGTH
-            )
+        let b: [u8; NONCE_LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
+            given: len,
+            expected: NONCE_LENGTH,
         })?;
         Ok(Self(b))
     }

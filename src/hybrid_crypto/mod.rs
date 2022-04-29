@@ -2,16 +2,20 @@
 
 use crate::{
     asymmetric::{AsymmetricCrypto, KeyPair},
-    Error,
+    symmetric_crypto::SymmetricCrypto,
+    Error, Key,
 };
 
 mod block;
+mod dem;
 mod header;
 mod kem;
 mod scanner;
 
 pub use block::Block;
+pub use dem::DemAes;
 pub use header::{Header, Metadata};
+pub use kem::ElGammalKemAesX25519;
 pub use scanner::BytesScanner;
 
 /// Key Encapsulation Method (KEM). It is used to generate a secret key along
@@ -52,4 +56,11 @@ pub trait Kem<T: AsymmetricCrypto> {
         sk: &<<T as AsymmetricCrypto>::KeyPair as KeyPair>::PrivateKey,
         C0: &Self::CipherText,
     ) -> Result<Self::SecretKey, Error>;
+}
+
+pub trait Dem<T: SymmetricCrypto> {
+    const KEY_LENGTH: usize = <<T as SymmetricCrypto>::Key as Key>::LENGTH;
+    fn new() -> Self;
+    fn encrypt(&self, K: &[u8], L: &[u8], m: &[u8]) -> Result<Vec<u8>, Error>;
+    fn decrypt(&self, K: &[u8], L: &[u8], c: &[u8]) -> Result<Vec<u8>, Error>;
 }

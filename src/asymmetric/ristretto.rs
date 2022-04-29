@@ -1,6 +1,7 @@
 use super::{AsymmetricCrypto, KeyPair};
 use crate::{
     entropy::CsRng,
+    kdf::hkdf_256,
     symmetric_crypto::{aes_256_gcm_pure, Nonce as _, SymmetricCrypto},
     Error, Key,
 };
@@ -17,6 +18,8 @@ use std::{
     ops::{DerefMut, Mul},
     sync::Mutex,
 };
+
+const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct X25519PrivateKey(Scalar);
@@ -51,17 +54,13 @@ impl TryFrom<&[u8]> for X25519PrivateKey {
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         let len = bytes.len();
-        let bytes: [u8; <Self>::LENGTH] = bytes.try_into().map_err(|_e| {
-            error!(
-                "Invalid private key of length: {}, expected length: {}",
-                len,
-                <Self>::LENGTH,
-            );
-            Error::KeyParseError
+        let bytes: [u8; <Self>::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
+            given: len,
+            expected: <Self>::LENGTH,
         })?;
         let scalar = Scalar::from_canonical_bytes(bytes).ok_or_else(|| {
             error!("Invalid private key bytes");
-            Error::KeyParseError
+            Error::ConversionError
         })?;
         Ok(X25519PrivateKey(scalar))
     }
@@ -74,7 +73,7 @@ impl TryFrom<&str> for X25519PrivateKey {
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
         let bytes = hex::decode(value).map_err(|e| {
             error!("Invalid hex encoded private key: {}", e);
-            Error::KeyParseError
+            Error::ParseError
         })?;
         X25519PrivateKey::try_from(bytes)
     }
@@ -91,9 +90,8 @@ impl Display for X25519PrivateKey {
 pub struct X25519PublicKey(RistrettoPoint);
 
 impl X25519PublicKey {
-    pub const LENGTH: usize = 32;
+    pub const LENGTH: usize = 32; //compressed
 
-    //compressed
     #[must_use]
     pub fn as_bytes(&self) -> [u8; 32] {
         self.0.compress().as_bytes().to_owned()
@@ -112,17 +110,15 @@ impl TryFrom<&[u8]> for X25519PublicKey {
     fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
         let len = value.len();
         if len != <X25519PublicKey>::LENGTH {
-            error!(
-                "Invalid key of length: {}, expected length: {}",
-                len,
-                <X25519PublicKey>::LENGTH
-            );
-            return Err(Error::KeyParseError);
+            return Err(Error::SizeError {
+                given: len,
+                expected: <X25519PublicKey>::LENGTH,
+            });
         };
         let compressed = CompressedRistretto::from_slice(value);
         let point = compressed.decompress().ok_or_else(|| {
             error!("Could not decompress the Ristretto point");
-            Error::KeyParseError
+            Error::ConversionError
         })?;
         Ok(X25519PublicKey(point))
     }
@@ -135,7 +131,7 @@ impl TryFrom<&str> for X25519PublicKey {
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
         let bytes = hex::decode(value).map_err(|e| {
             error!("Invalid hex encoded public key: {}", e);
-            Error::KeyParseError
+            Error::ParseError
         })?;
         X25519PublicKey::try_from(bytes.as_slice())
     }
@@ -265,8 +261,9 @@ impl X25519Crypto {
             .clone_from_slice(&ephemeral_keypair.public_key.as_bytes());
         master[<X25519PublicKey>::LENGTH..].clone_from_slice(&point.compress().to_bytes());
         //Derive a 256 bit key using HKDF
-        //hkdf_256(&master, HKDF_INFO)
-        Ok([0u8; 32])
+        Ok(hkdf_256(&master, 32, HKDF_INFO)?
+            .try_into()
+            .expect("Size should be okay"))
     }
 
     /// Generate a 256 bit symmetric key used with ECIES decryption
@@ -281,8 +278,9 @@ impl X25519Crypto {
         master[..<X25519PublicKey>::LENGTH].clone_from_slice(&ephemeral_public_key.as_bytes());
         master[<X25519PublicKey>::LENGTH..].clone_from_slice(&point.compress().to_bytes());
         //Derive a 256 bit key using HKDF
-        //hkdf_256(&master, HKDF_INFO)
-        Ok([0u8; 32])
+        Ok(hkdf_256(&master, 32, HKDF_INFO)?
+            .try_into()
+            .expect("Size should be okay"))
     }
 
     pub fn new_private_key(&self) -> X25519PrivateKey {
@@ -300,7 +298,7 @@ impl X25519Crypto {
     }
 }
 
-impl<'a> AsymmetricCrypto for X25519Crypto {
+impl AsymmetricCrypto for X25519Crypto {
     type EncryptionParameters = ();
     type KeyPair = X25519KeyPair;
     type KeyPairGenerationParameters = ();

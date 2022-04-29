@@ -28,8 +28,12 @@ pub mod sodium_bindings;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Failed to parse Key from given bytes")]
-    KeyParseError,
+    #[error("Wrong size: {given} given should be {expected}")]
+    SizeError { given: usize, expected: usize },
+    #[error("Failed to parse")]
+    ParseError,
+    #[error("Failed to convert")]
+    ConversionError,
     #[error("KDF error")]
     KdfError,
     #[error("Key generation error")]

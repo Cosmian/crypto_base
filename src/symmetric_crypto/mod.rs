@@ -21,8 +21,8 @@ pub const MIN_DATA_LENGTH: usize = 1;
 pub trait Nonce: Into<Vec<u8>> + Clone + PartialEq + Display + Debug + Sync + Send {
     const LENGTH: usize;
     fn new(rng: &mut CsRng) -> Self;
-    fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self>;
-    fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self>;
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Error>;
+    fn try_from_slice(bytes: &[u8]) -> Result<Self, Error>;
     #[must_use]
     fn increment(&self, increment: usize) -> Self;
     #[must_use]
