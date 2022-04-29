@@ -24,10 +24,27 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    /// The length in bytes of this meta data
+    pub fn len(&self) -> usize {
+        self.uid.len()
+            + match &self.additional_data {
+                Some(v) => v.len(),
+                None => 0,
+            }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Encode the metadata as a byte array
     ///
     /// The first 4 bytes is the u32 length of the UID as big endian bytes
     pub fn as_bytes(&self) -> anyhow::Result<Vec<u8>> {
+        if self.is_empty() {
+            return Ok(vec![]);
+        }
         let mut bytes = u32_len(&self.uid)?.to_vec();
         bytes.extend(&self.uid);
         if let Some(ad) = &self.additional_data {
@@ -108,23 +125,27 @@ where
         let symmetric_key =
             asymmetric_scheme.decrypt_symmetric_key::<S>(private_key, &encrypted_symmetric_key)?;
 
-        // Nonce
-        let nonce = <<S as SymmetricCrypto>::Nonce>::try_from_slice(
-            scanner.next(<<S as SymmetricCrypto>::Nonce>::LENGTH)?,
-        )?;
+        let metadata = if scanner.has_more() {
+            // Nonce
+            let nonce = <<S as SymmetricCrypto>::Nonce>::try_from_slice(
+                scanner.next(<<S as SymmetricCrypto>::Nonce>::LENGTH)?,
+            )?;
 
-        // encrypted metadata
-        let encrypted_metadata_size = scanner.read_u32()? as usize;
+            // encrypted metadata
+            let encrypted_metadata_size = scanner.read_u32()? as usize;
 
-        // UID
-        let encrypted_metadata = scanner.next(encrypted_metadata_size)?;
-        let symmetric_scheme = <S as SymmetricCrypto>::new();
-        let metadata = Metadata::from_bytes(&symmetric_scheme.decrypt(
-            &symmetric_key,
-            encrypted_metadata,
-            &nonce,
-            None,
-        )?)?;
+            // UID
+            let encrypted_metadata = scanner.next(encrypted_metadata_size)?;
+            let symmetric_scheme = <S as SymmetricCrypto>::new();
+            Metadata::from_bytes(&symmetric_scheme.decrypt(
+                &symmetric_key,
+                encrypted_metadata,
+                &nonce,
+                None,
+            )?)?
+        } else {
+            Metadata::default()
+        };
 
         Ok(Header {
             asymmetric_scheme,
@@ -139,7 +160,7 @@ where
     /// The header is encoded using the following format
     ///  - [0,4[: big-endian u32: the size S of the encrypted symmetric key
     ///  - [4,S+4[: the encrypted symmetric key
-    ///  - [S+4,S+4+N]: the nonce (fixed size)
+    ///  - [S+4,S+4+N]: the nonce (fixed size) if the meta data is not empty
     ///  - [S+4+N, S+8+N[: big-endian u32: the size M of the symmetrically
     ///    encrypted Metadata
     ///  - [S+8+N,S+8+N+M[: the symmetrically encrypted metadata
@@ -149,23 +170,24 @@ where
         // ...bytes
         bytes.extend(&self.encrypted_symmetric_key);
 
-        let symmetric_scheme = <S as SymmetricCrypto>::new();
+        if !&self.meta_data().is_empty() {
+            let symmetric_scheme = <S as SymmetricCrypto>::new();
+            // Nonce
+            let nonce = symmetric_scheme.generate_nonce();
+            bytes.extend(nonce.as_bytes());
 
-        // Nonce
-        let nonce = symmetric_scheme.generate_nonce();
-        bytes.extend(nonce.as_bytes());
-
-        // Encrypted metadata
-        let encrypted_metadata = symmetric_scheme.encrypt(
-            &self.symmetric_key,
-            &self.metadata.as_bytes()?,
-            &nonce,
-            None,
-        )?;
-        // ... size
-        bytes.extend(u32_len(&encrypted_metadata)?);
-        // ... bytes
-        bytes.extend(encrypted_metadata);
+            // Encrypted metadata
+            let encrypted_metadata = symmetric_scheme.encrypt(
+                &self.symmetric_key,
+                &self.metadata.as_bytes()?,
+                &nonce,
+                None,
+            )?;
+            // ... size
+            bytes.extend(u32_len(&encrypted_metadata)?);
+            // ... bytes
+            bytes.extend(encrypted_metadata);
+        }
         Ok(bytes)
     }
 
