@@ -574,17 +574,11 @@ impl SymmetricCrypto for FF1Crypto {
 
     const MAC_LENGTH: usize = MAC_LENGTH;
 
-    #[must_use]
-    fn new() -> Self {
-        FF1Crypto {}
-    }
-
     fn description() -> String {
         format!("FF1 pure Rust (key bits: {})", KEY_LENGTH * 8,)
     }
 
     fn encrypt(
-        &self,
         key: &Self::Key,
         bytes: &[u8],
         _nonce: &Self::Nonce,
@@ -594,7 +588,6 @@ impl SymmetricCrypto for FF1Crypto {
     }
 
     fn decrypt(
-        &self,
         key: &Self::Key,
         bytes: &[u8],
         _nonce: &Self::Nonce,

@@ -8,37 +8,32 @@ use crate::{
     symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, Nonce, SymmetricCrypto},
     Key,
 };
-use std::convert::TryFrom;
+use rand_core::{CryptoRng, RngCore};
+use std::{convert::TryFrom, sync::Mutex};
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
-pub struct ElGammalKemAesX25519 {
-    x25519_scheme: X25519Crypto,
-}
+pub struct ElGammalKemAesX25519;
 
 impl Kem<X25519Crypto> for ElGammalKemAesX25519 {
     type CipherText = Vec<u8>;
     type SecretKey = Vec<u8>;
 
-    fn new() -> Self {
-        ElGammalKemAesX25519 {
-            x25519_scheme: X25519Crypto::new(),
-        }
-    }
-
-    fn description(&self) -> String {
+    fn description() -> String {
         todo!()
     }
 
-    fn key_gen(&self) -> <X25519Crypto as AsymmetricCrypto>::KeyPair {
-        <X25519Crypto as AsymmetricCrypto>::KeyPair::new(&self.x25519_scheme.rng)
+    fn key_gen<R: RngCore + CryptoRng>(
+        rng: &Mutex<R>,
+    ) -> <X25519Crypto as AsymmetricCrypto>::KeyPair {
+        <X25519Crypto as AsymmetricCrypto>::KeyPair::new(rng)
     }
 
-    fn encaps(
-        &self,
+    fn encaps<R: RngCore + CryptoRng>(
+        rng: &Mutex<R>,
         pk: &<<X25519Crypto as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
     ) -> Result<(Self::CipherText, Self::SecretKey), Error> {
-        let ephemeral_keypair = self.key_gen();
+        let ephemeral_keypair = Self::key_gen(rng);
 
         // KEM ciphertext
         let C0 = ephemeral_keypair.public_key().as_bytes();
@@ -60,7 +55,6 @@ impl Kem<X25519Crypto> for ElGammalKemAesX25519 {
     }
 
     fn decaps(
-        &self,
         sk: &<<X25519Crypto as AsymmetricCrypto>::KeyPair as KeyPair>::PrivateKey,
         C0: &Self::CipherText,
     ) -> Result<Self::SecretKey, Error> {
@@ -84,18 +78,18 @@ impl Kem<X25519Crypto> for ElGammalKemAesX25519 {
 
 #[cfg(test)]
 mod tests {
+    use crate::entropy::CsRng;
+
     use super::*;
     use anyhow::Result;
 
     #[test]
     fn test_kem() -> Result<()> {
-        let kem = ElGammalKemAesX25519::new();
-        let key_pair = kem.key_gen();
-        let (C0, K) = kem
-            .encaps(key_pair.public_key())
+        let rng = Mutex::new(CsRng::new());
+        let key_pair = ElGammalKemAesX25519::key_gen(&rng);
+        let (C0, K) = ElGammalKemAesX25519::encaps(&rng, key_pair.public_key())
             .map_err(|err| anyhow::eyre!("{:?}", err))?;
-        let res = kem
-            .decaps(key_pair.private_key(), &C0)
+        let res = ElGammalKemAesX25519::decaps(key_pair.private_key(), &C0)
             .map_err(|err| anyhow::eyre!("{:?}", err))?;
         anyhow::ensure!(K == res, "Wrong decapsulation!");
         Ok(())

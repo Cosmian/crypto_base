@@ -134,8 +134,7 @@ where
 
             // UID
             let encrypted_metadata = scanner.next(encrypted_metadata_size)?;
-            let symmetric_scheme = S::new();
-            Metadata::from_bytes(&symmetric_scheme.decrypt(
+            Metadata::from_bytes(&S::decrypt(
                 &symmetric_key,
                 encrypted_metadata,
                 &nonce,
@@ -169,13 +168,12 @@ where
         bytes.extend(&self.encrypted_symmetric_key);
 
         if !&self.meta_data().is_empty() {
-            let symmetric_scheme = S::new();
             // Nonce
             let nonce = S::Nonce::new(rng);
             bytes.extend(nonce.as_bytes());
 
             // Encrypted metadata
-            let encrypted_metadata = symmetric_scheme.encrypt(
+            let encrypted_metadata = S::encrypt(
                 &self.symmetric_key,
                 &self.metadata.as_bytes()?,
                 &nonce,

@@ -47,7 +47,6 @@ where
         uid: &[u8],
         block_number: usize,
     ) -> anyhow::Result<Self> {
-        let symmetric_crypto: S = S::default();
         // The block header is always present
         if encrypted_bytes.len() < Self::ENCRYPTION_OVERHEAD {
             anyhow::bail!(
@@ -70,7 +69,7 @@ where
         // `wasm32-unknown-unknown` builds.
         ad.extend(&(block_number as u64).to_le_bytes());
         // decrypt
-        let clear_text = symmetric_crypto.decrypt(
+        let clear_text = S::decrypt(
             symmetric_key,
             &encrypted_bytes[block_header_len..],
             &block_header.nonce,
@@ -93,7 +92,6 @@ where
         uid: &[u8],
         block_number: usize,
     ) -> anyhow::Result<Vec<u8>> {
-        let symmetric_crypto: S = S::default();
         // refresh the nonce
         let nonce = S::Nonce::new(rng);
         let mut ad = uid.to_vec();
@@ -107,7 +105,7 @@ where
         }
         .to_bytes();
         // write encrypted data
-        bytes.extend(symmetric_crypto.encrypt(
+        bytes.extend(S::encrypt(
             symmetric_key,
             &self.clear_text,
             &nonce,

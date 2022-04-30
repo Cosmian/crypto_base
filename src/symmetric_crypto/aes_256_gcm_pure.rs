@@ -1,5 +1,4 @@
 use crate::{
-    entropy::CsRng,
     symmetric_crypto::{Nonce as _, SymmetricCrypto},
     Error, Key as KeyTrait,
 };
@@ -161,9 +160,7 @@ impl Display for Nonce {
     }
 }
 
-pub struct Aes256GcmCrypto {
-    pub(crate) rng: Mutex<CsRng>,
-}
+pub struct Aes256GcmCrypto;
 
 impl Display for Aes256GcmCrypto {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -179,24 +176,11 @@ impl PartialEq for Aes256GcmCrypto {
     }
 }
 
-impl Default for Aes256GcmCrypto {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl SymmetricCrypto for Aes256GcmCrypto {
     type Key = Key;
     type Nonce = Nonce;
 
     const MAC_LENGTH: usize = MAC_LENGTH;
-
-    #[must_use]
-    fn new() -> Self {
-        Aes256GcmCrypto {
-            rng: Mutex::new(CsRng::new()),
-        }
-    }
 
     fn description() -> String {
         format!(
@@ -208,7 +192,6 @@ impl SymmetricCrypto for Aes256GcmCrypto {
     }
 
     fn encrypt(
-        &self,
         key: &Self::Key,
         bytes: &[u8],
         nonce: &Self::Nonce,
@@ -218,7 +201,6 @@ impl SymmetricCrypto for Aes256GcmCrypto {
     }
 
     fn decrypt(
-        &self,
         key: &Self::Key,
         bytes: &[u8],
         nonce: &Self::Nonce,
@@ -321,6 +303,7 @@ pub fn decrypt_in_place_detached(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::entropy::CsRng;
 
     #[test]
     fn test_key() {

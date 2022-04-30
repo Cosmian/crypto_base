@@ -2,7 +2,10 @@ use super::{AsymmetricCrypto, KeyPair};
 use crate::{
     entropy::CsRng,
     kdf::hkdf_256,
-    symmetric_crypto::{aes_256_gcm_pure, Nonce as _, SymmetricCrypto},
+    symmetric_crypto::{
+        aes_256_gcm_pure::{self, Aes256GcmCrypto},
+        Nonce as _, SymmetricCrypto,
+    },
     Error, Key,
 };
 use curve25519_dalek::{
@@ -202,19 +205,32 @@ impl KeyPair for X25519KeyPair {
     fn private_key(&self) -> &Self::PrivateKey {
         &self.private_key
     }
+
+    fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes = self.private_key().as_bytes();
+        bytes.append(&mut self.public_key().as_bytes());
+        bytes
+    }
+}
+
+impl TryFrom<Vec<u8>> for X25519KeyPair {
+    type Error = Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from(bytes.as_slice())
+    }
 }
 
 impl TryFrom<&[u8]> for X25519KeyPair {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         let len = <Self as KeyPair>::PrivateKey::LENGTH + <Self as KeyPair>::PublicKey::LENGTH;
         if len != bytes.len() {
-            anyhow::bail!(
-                "Invalid key pair of length: {}, expected length: {}",
-                bytes.len(),
-                len,
-            );
+            return Err(Error::SizeError {
+                given: bytes.len(),
+                expected: len,
+            });
         }
         let private_key = <Self as KeyPair>::PrivateKey::try_from(
             &bytes[..<Self as KeyPair>::PrivateKey::LENGTH],
@@ -388,13 +404,12 @@ impl AsymmetricCrypto for X25519Crypto {
         let sym_key_bytes = Self::sym_key_from_public_key(&ephemeral_keypair, public_key)?;
         // use the pure rust aes implementation
         let sym_key = aes_256_gcm_pure::Key(sym_key_bytes);
-        let aes = aes_256_gcm_pure::Aes256GcmCrypto::new();
         let nonce = aes_256_gcm_pure::Nonce::new(&self.rng);
         //prepare the result
         let mut result: Vec<u8> = Vec::with_capacity(data.len() + <Self>::ENCRYPTION_OVERHEAD);
         result.extend_from_slice(&ephemeral_keypair.public_key.as_bytes());
         result.extend_from_slice(&nonce.0);
-        result.extend(aes.encrypt(&sym_key, data, &nonce, None)?);
+        result.extend(Aes256GcmCrypto::encrypt(&sym_key, data, &nonce, None)?);
         Ok(result)
     }
 
@@ -426,11 +441,10 @@ impl AsymmetricCrypto for X25519Crypto {
         let sym_key_bytes = Self::sym_key_from_private_key(&ephemeral_public_key, private_key)?;
         // use the pure rust aes implementation
         let sym_key = aes_256_gcm_pure::Key(sym_key_bytes);
-        let aes = aes_256_gcm_pure::Aes256GcmCrypto::new();
         let nonce_bytes = &data
             [<X25519PublicKey>::LENGTH..<X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH];
         let nonce = aes_256_gcm_pure::Nonce::try_from_slice(nonce_bytes)?;
-        aes.decrypt(
+        Aes256GcmCrypto::decrypt(
             &sym_key,
             &data[<X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH..],
             &nonce,

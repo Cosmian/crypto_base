@@ -1,15 +1,16 @@
 use crate::{symmetric_crypto::SymmetricCrypto, Error};
 use rand_core::{CryptoRng, RngCore};
-use std::{sync::Mutex, vec::Vec};
+use std::{convert::TryFrom, sync::Mutex, vec::Vec};
 
 pub mod ristretto;
 
-pub trait KeyPair {
+pub trait KeyPair: TryFrom<Vec<u8>> {
     type PublicKey;
     type PrivateKey;
     fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self;
     fn public_key(&self) -> &Self::PublicKey;
     fn private_key(&self) -> &Self::PrivateKey;
+    fn as_bytes(&self) -> Vec<u8>;
 }
 
 pub trait AsymmetricCrypto: Send + Sync + Default {

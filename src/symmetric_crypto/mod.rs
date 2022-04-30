@@ -32,13 +32,10 @@ pub trait Nonce:
     fn as_bytes(&self) -> Vec<u8>;
 }
 
-pub trait SymmetricCrypto: Send + Sync + Default {
+pub trait SymmetricCrypto: Send + Sync {
     const MAC_LENGTH: usize;
     type Key: Key;
     type Nonce: Nonce;
-
-    /// Instantiate the symmetric crypto scheme with default parameters
-    fn new() -> Self;
 
     /// A short description of the scheme
     fn description() -> String;
@@ -54,7 +51,6 @@ pub trait SymmetricCrypto: Send + Sync + Default {
     /// This function encrypts then tag: it can also be used as a MAC, with an
     /// empty message.
     fn encrypt(
-        &self,
         key: &Self::Key,
         bytes: &[u8],
         nonce: &Self::Nonce,
@@ -69,7 +65,6 @@ pub trait SymmetricCrypto: Send + Sync + Default {
     ///
     /// Decryption will never be performed, even partially, before verification.
     fn decrypt(
-        &self,
         key: &Self::Key,
         bytes: &[u8],
         nonce: &Self::Nonce,
