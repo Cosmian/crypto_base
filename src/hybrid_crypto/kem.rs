@@ -8,7 +8,6 @@ use crate::{
     symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, Nonce, SymmetricCrypto},
     Key,
 };
-use log::error;
 use std::convert::TryFrom;
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
@@ -18,7 +17,7 @@ pub struct ElGammalKemAesX25519 {
 }
 
 impl Kem<X25519Crypto> for ElGammalKemAesX25519 {
-    type CipherText = [u8; <X25519PublicKey>::LENGTH];
+    type CipherText = Vec<u8>;
     type SecretKey = Vec<u8>;
 
     fn new() -> Self {
@@ -31,18 +30,15 @@ impl Kem<X25519Crypto> for ElGammalKemAesX25519 {
         todo!()
     }
 
-    fn key_gen(&self) -> Result<<X25519Crypto as AsymmetricCrypto>::KeyPair, Error> {
-        self.x25519_scheme.generate_key_pair(None).map_err(|err| {
-            error!("{:?}", err);
-            Error::KeyGenError
-        })
+    fn key_gen(&self) -> <X25519Crypto as AsymmetricCrypto>::KeyPair {
+        <X25519Crypto as AsymmetricCrypto>::KeyPair::new(&self.x25519_scheme.rng)
     }
 
     fn encaps(
         &self,
         pk: &<<X25519Crypto as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
     ) -> Result<(Self::CipherText, Self::SecretKey), Error> {
-        let ephemeral_keypair = self.key_gen()?;
+        let ephemeral_keypair = self.key_gen();
 
         // KEM ciphertext
         let C0 = ephemeral_keypair.public_key().as_bytes();
@@ -51,13 +47,13 @@ impl Kem<X25519Crypto> for ElGammalKemAesX25519 {
         let PEH = (pk * ephemeral_keypair.private_key()).as_bytes();
 
         // generate symmetric key
-        let mut b = [0u8; <X25519PublicKey>::LENGTH + <X25519PrivateKey>::LENGTH];
-        b[..<X25519PublicKey>::LENGTH].clone_from_slice(&PEH);
-        b[<X25519PublicKey>::LENGTH..].clone_from_slice(&C0);
+        let mut b = [0u8; X25519PublicKey::LENGTH + X25519PrivateKey::LENGTH];
+        b[..X25519PublicKey::LENGTH].clone_from_slice(&PEH);
+        b[X25519PublicKey::LENGTH..].clone_from_slice(&C0);
         let K = kdf::hkdf_256(
             &b,
-            <<Aes256GcmCrypto as SymmetricCrypto>::Key as Key>::LENGTH
-                + <<Aes256GcmCrypto as SymmetricCrypto>::Nonce as Nonce>::LENGTH,
+            <Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH
+                + <Aes256GcmCrypto as SymmetricCrypto>::Nonce::LENGTH,
             HKDF_INFO,
         )?;
         Ok((C0, K))
@@ -73,14 +69,14 @@ impl Kem<X25519Crypto> for ElGammalKemAesX25519 {
         let h = <X25519PublicKey>::try_from(C0.as_slice())? * sk;
 
         // TODO: check it is not null -> implement `is_zero`
-        let mut b = [0u8; <X25519PublicKey>::LENGTH + <X25519PrivateKey>::LENGTH];
-        b[..<X25519PublicKey>::LENGTH].clone_from_slice(&h.as_bytes());
-        b[<X25519PublicKey>::LENGTH..].clone_from_slice(C0);
+        let mut b = [0u8; X25519PublicKey::LENGTH + X25519PrivateKey::LENGTH];
+        b[..X25519PublicKey::LENGTH].clone_from_slice(&h.as_bytes());
+        b[X25519PublicKey::LENGTH..].clone_from_slice(C0);
 
         kdf::hkdf_256(
             &b,
-            <<Aes256GcmCrypto as SymmetricCrypto>::Key as Key>::LENGTH
-                + <<Aes256GcmCrypto as SymmetricCrypto>::Nonce as Nonce>::LENGTH,
+            <Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH
+                + <Aes256GcmCrypto as SymmetricCrypto>::Nonce::LENGTH,
             HKDF_INFO,
         )
     }
@@ -94,7 +90,7 @@ mod tests {
     #[test]
     fn test_kem() -> Result<()> {
         let kem = ElGammalKemAesX25519::new();
-        let key_pair = kem.key_gen().map_err(|err| anyhow::eyre!("{:?}", err))?;
+        let key_pair = kem.key_gen();
         let (C0, K) = kem
             .encaps(key_pair.public_key())
             .map_err(|err| anyhow::eyre!("{:?}", err))?;

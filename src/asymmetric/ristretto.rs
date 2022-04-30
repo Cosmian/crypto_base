@@ -27,8 +27,12 @@ pub struct X25519PrivateKey(Scalar);
 impl Key for X25519PrivateKey {
     const LENGTH: usize = 32;
 
-    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        X25519PrivateKey(Scalar::random(rng))
+    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
+        X25519PrivateKey(Scalar::random(
+            rng.lock()
+                .expect("Could not get a hold on the mutex!")
+                .deref_mut(),
+        ))
     }
 
     #[must_use]
@@ -89,18 +93,30 @@ impl Display for X25519PrivateKey {
 #[derive(Clone, PartialEq, Debug)]
 pub struct X25519PublicKey(RistrettoPoint);
 
-impl X25519PublicKey {
-    pub const LENGTH: usize = 32; //compressed
+impl Key for X25519PublicKey {
+    const LENGTH: usize = 32; //compressed
+
+    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
+        Self::from(&X25519PrivateKey::new(rng))
+    }
 
     #[must_use]
-    pub fn as_bytes(&self) -> [u8; 32] {
-        self.0.compress().as_bytes().to_owned()
+    fn as_bytes(&self) -> Vec<u8> {
+        self.0.compress().as_bytes().to_vec()
     }
 }
 
 impl From<&X25519PrivateKey> for X25519PublicKey {
     fn from(private_key: &X25519PrivateKey) -> Self {
         X25519PublicKey(&private_key.0 * &constants::RISTRETTO_BASEPOINT_TABLE)
+    }
+}
+
+impl TryFrom<Vec<u8>> for X25519PublicKey {
+    type Error = Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from(bytes.as_slice())
     }
 }
 
@@ -166,8 +182,11 @@ pub struct X25519KeyPair {
     pub public_key: X25519PublicKey,
 }
 
-impl X25519KeyPair {
-    pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> X25519KeyPair {
+impl KeyPair for X25519KeyPair {
+    type PrivateKey = X25519PrivateKey;
+    type PublicKey = X25519PublicKey;
+
+    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> X25519KeyPair {
         let private_key = X25519PrivateKey::new(rng);
         let public_key = X25519PublicKey::from(&private_key);
         X25519KeyPair {
@@ -175,11 +194,6 @@ impl X25519KeyPair {
             public_key,
         }
     }
-}
-
-impl KeyPair for X25519KeyPair {
-    type PrivateKey = X25519PrivateKey;
-    type PublicKey = X25519PublicKey;
 
     fn public_key(&self) -> &Self::PublicKey {
         &self.public_key
@@ -193,17 +207,21 @@ impl KeyPair for X25519KeyPair {
 impl TryFrom<&[u8]> for X25519KeyPair {
     type Error = anyhow::Error;
 
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let len = value.len();
-        if len != <X25519PrivateKey>::LENGTH + <X25519PublicKey>::LENGTH {
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        let len = <Self as KeyPair>::PrivateKey::LENGTH + <Self as KeyPair>::PublicKey::LENGTH;
+        if len != bytes.len() {
             anyhow::bail!(
                 "Invalid key pair of length: {}, expected length: {}",
+                bytes.len(),
                 len,
-                <X25519PrivateKey>::LENGTH + <X25519PublicKey>::LENGTH
             );
         }
-        let private_key = X25519PrivateKey::try_from(&value[0..<X25519PrivateKey>::LENGTH])?;
-        let public_key = X25519PublicKey::try_from(&value[<X25519PrivateKey>::LENGTH..])?;
+        let private_key = <Self as KeyPair>::PrivateKey::try_from(
+            &bytes[..<Self as KeyPair>::PrivateKey::LENGTH],
+        )?;
+        let public_key = <Self as KeyPair>::PublicKey::try_from(
+            &bytes[<Self as KeyPair>::PrivateKey::LENGTH..],
+        )?;
         Ok(X25519KeyPair {
             private_key,
             public_key,
@@ -218,7 +236,7 @@ impl Display for X25519KeyPair {
 }
 
 pub struct X25519Crypto {
-    rng: Mutex<CsRng>,
+    pub(crate) rng: Mutex<CsRng>,
 }
 
 impl Default for X25519Crypto {
@@ -282,20 +300,6 @@ impl X25519Crypto {
             .try_into()
             .expect("Size should be okay"))
     }
-
-    pub fn new_private_key(&self) -> X25519PrivateKey {
-        X25519PrivateKey::new(
-            self.rng
-                .lock()
-                .expect("Could not get a hold on the mutex")
-                .deref_mut(),
-        )
-    }
-
-    pub fn fill_bytes(&self, dest: &mut [u8]) {
-        let rng = &mut *self.rng.lock().expect("a mutex lock failed");
-        rng.fill_bytes(dest);
-    }
 }
 
 impl AsymmetricCrypto for X25519Crypto {
@@ -322,8 +326,7 @@ impl AsymmetricCrypto for X25519Crypto {
         &self,
         _: Option<&Self::PrivateKeyGenerationParameters>,
     ) -> anyhow::Result<<Self::KeyPair as KeyPair>::PrivateKey> {
-        let rng = &mut *self.rng.lock().expect("a mutex lock failed");
-        Ok(X25519PrivateKey::new(rng))
+        Ok(X25519PrivateKey::new(&self.rng))
     }
 
     /// Generate a key pair, private key and public key
@@ -331,8 +334,7 @@ impl AsymmetricCrypto for X25519Crypto {
         &self,
         _: Option<&Self::KeyPairGenerationParameters>,
     ) -> anyhow::Result<Self::KeyPair> {
-        let rng = &mut *self.rng.lock().expect("a mutex lock failed");
-        Ok(X25519KeyPair::new(rng))
+        Ok(X25519KeyPair::new(&self.rng))
     }
 
     /// Generate a symmetric key, and its encryption,to be used in an hybrid
@@ -343,7 +345,7 @@ impl AsymmetricCrypto for X25519Crypto {
         _: Option<&Self::EncryptionParameters>,
     ) -> anyhow::Result<(S::Key, Vec<u8>)> {
         let bytes: Vec<u8> = self.generate_random_bytes(S::Key::LENGTH);
-        let symmetric_key = S::generate_key_from_rnd(&bytes)?;
+        let symmetric_key = S::Key::try_from(bytes)?;
         let encrypted_key = self.encrypt(public_key, None, &symmetric_key.as_bytes())?;
         Ok((symmetric_key, encrypted_key))
     }
@@ -382,13 +384,12 @@ impl AsymmetricCrypto for X25519Crypto {
         _: Option<&Self::EncryptionParameters>,
         data: &[u8],
     ) -> anyhow::Result<Vec<u8>> {
-        let rng = &mut *self.rng.lock().expect("a mutex lock failed");
-        let ephemeral_keypair = X25519KeyPair::new(rng);
+        let ephemeral_keypair = X25519KeyPair::new(&self.rng);
         let sym_key_bytes = Self::sym_key_from_public_key(&ephemeral_keypair, public_key)?;
         // use the pure rust aes implementation
         let sym_key = aes_256_gcm_pure::Key(sym_key_bytes);
         let aes = aes_256_gcm_pure::Aes256GcmCrypto::new();
-        let nonce = aes.generate_nonce();
+        let nonce = aes_256_gcm_pure::Nonce::new(&self.rng);
         //prepare the result
         let mut result: Vec<u8> = Vec::with_capacity(data.len() + <Self>::ENCRYPTION_OVERHEAD);
         result.extend_from_slice(&ephemeral_keypair.public_key.as_bytes());
@@ -450,19 +451,19 @@ mod test {
         let crypto = super::X25519Crypto::new();
         let key_pair_1 = crypto.generate_key_pair(None).unwrap();
         assert_ne!(
-            &[0_u8; <X25519PrivateKey>::LENGTH],
+            &[0_u8; X25519PrivateKey::LENGTH],
             key_pair_1.private_key.0.as_bytes()
         );
         assert_ne!(
-            [0_u8; <X25519PublicKey>::LENGTH],
+            vec![0_u8; X25519PublicKey::LENGTH],
             key_pair_1.public_key.as_bytes()
         );
         assert_eq!(
-            <X25519PrivateKey>::LENGTH as usize,
+            X25519PrivateKey::LENGTH as usize,
             key_pair_1.private_key.0.as_bytes().len()
         );
         assert_eq!(
-            <X25519PublicKey>::LENGTH as usize,
+            X25519PublicKey::LENGTH as usize,
             key_pair_1.public_key.as_bytes().len()
         );
         let key_pair_2 = crypto.generate_key_pair(None).unwrap();

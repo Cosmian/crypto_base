@@ -37,7 +37,7 @@ pub trait Kem<T: AsymmetricCrypto> {
     fn description(&self) -> String;
 
     /// Generate an asymmetric key pair
-    fn key_gen(&self) -> Result<<T as AsymmetricCrypto>::KeyPair, Error>;
+    fn key_gen(&self) -> <T as AsymmetricCrypto>::KeyPair;
 
     /// Generate the ciphertext and keying data.
     ///

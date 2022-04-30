@@ -47,23 +47,3 @@ impl RngCore for CsRng {
     }
 }
 impl CryptoRng for CsRng {}
-
-#[must_use]
-pub fn new_uid() -> [u8; 32] {
-    let mut rng = CsRng::new();
-    let mut v = [0_u8; 32];
-    rng.fill_bytes(&mut v);
-    v
-}
-
-/// PRNG for bytes array
-pub fn gen_bytes(output: &mut [u8]) -> anyhow::Result<()> {
-    let mut rng = CsRng::new();
-    anyhow::ensure!(
-        !output.is_empty(),
-        "Entropy generation failed: output empty!"
-    );
-
-    rng.fill_bytes(output);
-    Ok(())
-}

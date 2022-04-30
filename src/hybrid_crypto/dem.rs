@@ -1,10 +1,13 @@
 use crate::{
     hybrid_crypto::Dem,
     symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, Nonce, SymmetricCrypto},
-    Error,
+    Error, Key,
 };
 use log::error;
-use std::{convert::TryFrom, ops::Deref};
+use std::{
+    convert::TryFrom,
+    ops::{Deref, DerefMut},
+};
 
 pub struct DemAes(Aes256GcmCrypto);
 
@@ -16,24 +19,29 @@ impl Deref for DemAes {
     }
 }
 
+impl DerefMut for DemAes {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl Dem<Aes256GcmCrypto> for DemAes {
-    const KEY_LENGTH: usize =
-        <<Aes256GcmCrypto as crate::symmetric_crypto::SymmetricCrypto>::Key as crate::Key>::LENGTH;
+    const KEY_LENGTH: usize = <Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH;
 
     fn new() -> Self {
         Self(Aes256GcmCrypto::new())
     }
 
-    fn encrypt(&self, K: &[u8], L: &[u8], m: &[u8]) -> Result<Vec<u8>, crate::Error> {
+    fn encrypt(&self, K: &[u8], L: &[u8], m: &[u8]) -> Result<Vec<u8>, Error> {
         if K.len() < Self::KEY_LENGTH {
             return Err(Error::SizeError {
                 given: K.len(),
                 expected: Self::KEY_LENGTH,
             });
         }
-        let k1 = K[..<<Aes256GcmCrypto as crate::symmetric_crypto::SymmetricCrypto>::Key as crate::Key>::LENGTH].to_vec();
-        let key = <<Aes256GcmCrypto as SymmetricCrypto>::Key>::try_from(k1)?;
-        let nonce = self.generate_nonce();
+        let k1 = K[..<Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH].to_vec();
+        let key = <Aes256GcmCrypto as SymmetricCrypto>::Key::try_from(k1)?;
+        let nonce = <Aes256GcmCrypto as SymmetricCrypto>::Nonce::new(&self.rng);
         // this encryption method comprises the MAC tag
         let mut c = self
             .deref()
@@ -47,23 +55,23 @@ impl Dem<Aes256GcmCrypto> for DemAes {
         Ok(res)
     }
 
-    fn decrypt(&self, K: &[u8], L: &[u8], c: &[u8]) -> Result<Vec<u8>, crate::Error> {
+    fn decrypt(&self, K: &[u8], L: &[u8], c: &[u8]) -> Result<Vec<u8>, Error> {
         if K.len() < Self::KEY_LENGTH {
             return Err(Error::SizeError {
                 given: K.len(),
                 expected: Self::KEY_LENGTH,
             });
         }
-        let k1 = K[..<<Aes256GcmCrypto as crate::symmetric_crypto::SymmetricCrypto>::Key as crate::Key>::LENGTH].to_vec();
-        let key = <<Aes256GcmCrypto as SymmetricCrypto>::Key>::try_from(k1)?;
-        let nonce = <<Aes256GcmCrypto as SymmetricCrypto>::Nonce as Nonce>::try_from(
-            c[..<<Aes256GcmCrypto as SymmetricCrypto>::Nonce as Nonce>::LENGTH].to_vec(),
+        let k1 = K[..<Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH].to_vec();
+        let key = <Aes256GcmCrypto as SymmetricCrypto>::Key::try_from(k1)?;
+        let nonce = <Aes256GcmCrypto as SymmetricCrypto>::Nonce::try_from(
+            c[..<Aes256GcmCrypto as SymmetricCrypto>::Nonce::LENGTH].to_vec(),
         )?;
         // this encryption method comprises the authentification tag
         self.deref()
             .decrypt(
                 &key,
-                &c[<<Aes256GcmCrypto as SymmetricCrypto>::Nonce as Nonce>::LENGTH..],
+                &c[<Aes256GcmCrypto as SymmetricCrypto>::Nonce::LENGTH..],
                 &nonce,
                 Some(L),
             )
@@ -88,7 +96,7 @@ mod tests {
         let m = b"my secret message";
         let L = b"public tag";
         let kem = ElGammalKemAesX25519::new();
-        let key_pair = kem.key_gen().map_err(|err| anyhow::eyre!("{:?}", err))?;
+        let key_pair = kem.key_gen();
         let (_, K) = kem
             .encaps(key_pair.public_key())
             .map_err(|err| anyhow::eyre!("{:?}", err))?;

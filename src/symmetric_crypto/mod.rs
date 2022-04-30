@@ -8,20 +8,22 @@ pub mod ff1;
 #[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
 pub mod xchacha20;
 
+use crate::{Error, Key};
+use rand_core::{CryptoRng, RngCore};
 use std::{
-    convert::Into,
+    convert::TryFrom,
     fmt::{Debug, Display},
+    sync::Mutex,
     vec::Vec,
 };
 
-use crate::{entropy::CsRng, Error, Key};
-
 pub const MIN_DATA_LENGTH: usize = 1;
 
-pub trait Nonce: Into<Vec<u8>> + Clone + PartialEq + Display + Debug + Sync + Send {
+pub trait Nonce:
+    TryFrom<Vec<u8>, Error = Error> + Clone + PartialEq + Display + Debug + Sync + Send
+{
     const LENGTH: usize;
-    fn new(rng: &mut CsRng) -> Self;
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Error>;
+    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self;
     fn try_from_slice(bytes: &[u8]) -> Result<Self, Error>;
     #[must_use]
     fn increment(&self, increment: usize) -> Self;
@@ -40,15 +42,6 @@ pub trait SymmetricCrypto: Send + Sync + Default {
 
     /// A short description of the scheme
     fn description() -> String;
-
-    fn generate_random_bytes(&self, len: usize) -> Vec<u8>;
-
-    // rnd_bytes must be [u8;RANDOM_LENGTH], but this need const generic
-    fn generate_key_from_rnd(rnd_bytes: &[u8]) -> Result<Self::Key, Error>;
-
-    fn generate_key(&self) -> Self::Key;
-
-    fn generate_nonce(&self) -> Self::Nonce;
 
     /// Encrypts a message using a secret key and a public nonce in combined
     /// mode: the encrypted message, as well as a tag authenticating both

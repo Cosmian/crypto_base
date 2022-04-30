@@ -1,5 +1,4 @@
 use hkdf::Hkdf;
-use log::error;
 use sha2::Sha256;
 
 use crate::Error;
@@ -16,9 +15,7 @@ use crate::Error;
 pub fn hkdf_256(master: &[u8], key_len: usize, info: &[u8]) -> Result<Vec<u8>, Error> {
     let h = Hkdf::<Sha256>::new(None, master);
     let mut out = vec![0_u8; key_len];
-    h.expand(info, &mut out).map_err(|e| {
-        error!("hkdf 256 failed. Invalid length: {}", e);
-        Error::KdfError
-    })?;
+    h.expand(info, &mut out)
+        .map_err(|err| Error::KdfError { err })?;
     Ok(out)
 }

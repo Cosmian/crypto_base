@@ -1,9 +1,9 @@
+use rand_core::{CryptoRng, RngCore};
 use std::{
     convert::TryFrom,
     fmt::{Debug, Display},
+    sync::Mutex,
 };
-
-use rand_core::{CryptoRng, RngCore};
 use thiserror::Error;
 
 pub mod aes_hash_mmo;
@@ -34,8 +34,8 @@ pub enum Error {
     ParseError,
     #[error("Failed to convert")]
     ConversionError,
-    #[error("KDF error")]
-    KdfError,
+    #[error("{err}")]
+    KdfError { err: hkdf::InvalidLength },
     #[error("Key generation error")]
     KeyGenError,
     #[error("Encryption error")]
@@ -46,7 +46,7 @@ pub enum Error {
 
 pub trait Key: TryFrom<Vec<u8>, Error = Error> + PartialEq + Display + Debug + Sync + Send {
     const LENGTH: usize;
-    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self;
+    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self;
     fn as_bytes(&self) -> Vec<u8>;
     fn parse(bytes: Vec<u8>) -> Result<Self, Error> {
         Self::try_from(bytes)

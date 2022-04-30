@@ -1,3 +1,12 @@
+use crate::{
+    symmetric_crypto::{Nonce as _, SymmetricCrypto},
+    Error, Key as KeyTrait,
+};
+use aes::Aes256;
+use cosmian_fpe::ff1::{FlexibleNumeralString, FF1};
+use itertools::Itertools;
+use num_traits::Bounded;
+use rand_core::{CryptoRng, RngCore};
 use std::{
     cmp::min,
     collections::HashMap,
@@ -8,20 +17,7 @@ use std::{
     sync::Mutex,
     vec::Vec,
 };
-
-use aes::Aes256;
-use cosmian_fpe::ff1::{FlexibleNumeralString, FF1};
-use itertools::Itertools;
-use num_traits::Bounded;
-use rand_core::{CryptoRng, RngCore};
 use tracing::trace;
-
-use super::SymmetricCrypto;
-use crate::{
-    entropy::CsRng,
-    symmetric_crypto::{Key as _, Nonce as _},
-    Error,
-};
 
 pub const RECOMMENDED_THRESHOLD: usize = 1_000_000;
 pub const KEY_LENGTH: usize = 32;
@@ -31,13 +27,16 @@ pub const MAC_LENGTH: usize = 0;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Key(pub [u8; KEY_LENGTH]);
 
-impl super::Key for Key {
+impl KeyTrait for Key {
     const LENGTH: usize = KEY_LENGTH;
 
     /// Generate a new symmetric random `Key`
-    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        let mut key = Key([0_u8; KEY_LENGTH]);
-        rng.fill_bytes(&mut key.0);
+    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
+        let mut key = Self([0_u8; Self::LENGTH]);
+        rng.lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .fill_bytes(&mut key.0);
         key
     }
 
@@ -58,14 +57,14 @@ impl<'a> TryFrom<&'a [u8]> for Key {
     type Error = Error;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        let len = bytes.len();
-        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
-            given: len,
-            expected: KEY_LENGTH,
+        let b: [u8; Self::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
+            given: bytes.len(),
+            expected: Self::LENGTH,
         })?;
         Ok(Self(b))
     }
 }
+
 impl Key {
     #[must_use]
     pub fn as_array(&self) -> [u8; 32] {
@@ -92,21 +91,19 @@ impl super::Nonce for Nonce {
     const LENGTH: usize = NONCE_LENGTH;
 
     /// Generate a new symmetric random `Nonce`
-    fn new(rng: &mut CsRng) -> Self {
-        let mut key = Nonce([0_u8; NONCE_LENGTH]);
-        rng.fill_bytes(&mut key.0);
-        key
+    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
+        let mut key = [0_u8; NONCE_LENGTH];
+        rng.lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .fill_bytes(&mut key);
+        Self(key)
     }
 
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Error> {
-        Self::try_from_slice(bytes.as_slice())
-    }
-
-    fn try_from_slice(bytes: &[u8]) -> Result<Self, Error> {
-        let len = bytes.len();
-        let b: [u8; NONCE_LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
-            given: len,
-            expected: NONCE_LENGTH,
+    fn try_from_slice(bytes: &[u8]) -> Result<Self, Self::Error> {
+        let b: [u8; Self::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
+            given: bytes.len(),
+            expected: Self::LENGTH,
         })?;
         Ok(Self(b))
     }
@@ -139,6 +136,14 @@ impl super::Nonce for Nonce {
     }
 }
 
+impl TryFrom<Vec<u8>> for Nonce {
+    type Error = Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from_slice(bytes.as_slice())
+    }
+}
+
 impl From<Nonce> for Vec<u8> {
     fn from(n: Nonce) -> Vec<u8> {
         n.0.to_vec()
@@ -156,11 +161,10 @@ impl Display for Nonce {
         write!(f, "{}", hex::encode(self.0))
     }
 }
+
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Default)]
-pub struct FF1Crypto {
-    rng: Mutex<CsRng>,
-}
+pub struct FF1Crypto;
 
 impl Display for FF1Crypto {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -572,32 +576,11 @@ impl SymmetricCrypto for FF1Crypto {
 
     #[must_use]
     fn new() -> Self {
-        FF1Crypto {
-            rng: Mutex::new(CsRng::new()),
-        }
+        FF1Crypto {}
     }
 
     fn description() -> String {
         format!("FF1 pure Rust (key bits: {})", KEY_LENGTH * 8,)
-    }
-
-    fn generate_random_bytes(&self, len: usize) -> Vec<u8> {
-        self.rng
-            .lock()
-            .expect("a mutex lock failed")
-            .generate_random_bytes(len)
-    }
-
-    fn generate_key_from_rnd(rnd_bytes: &[u8]) -> Result<Self::Key, Error> {
-        Self::Key::try_from(rnd_bytes)
-    }
-
-    fn generate_key(&self) -> Self::Key {
-        Key::new(self.rng.lock().expect("a mutex lock failed").deref_mut())
-    }
-
-    fn generate_nonce(&self) -> Self::Nonce {
-        Nonce::new(&mut self.rng.lock().expect("a mutex lock failed"))
     }
 
     fn encrypt(

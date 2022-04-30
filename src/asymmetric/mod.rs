@@ -1,24 +1,13 @@
-pub mod ristretto;
-
-use std::vec::Vec;
-
 use crate::{symmetric_crypto::SymmetricCrypto, Error};
+use rand_core::{CryptoRng, RngCore};
+use std::{sync::Mutex, vec::Vec};
 
-pub trait PrivateKey {
-    const LENGTH: usize;
-    fn new() -> Self;
-    fn as_bytes(&self) -> Vec<u8>;
-}
-
-pub trait PublicKey {
-    const LENGTH: usize;
-    fn new() -> Self;
-    fn as_bytes(&self) -> Vec<u8>;
-}
+pub mod ristretto;
 
 pub trait KeyPair {
     type PublicKey;
     type PrivateKey;
+    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self;
     fn public_key(&self) -> &Self::PublicKey;
     fn private_key(&self) -> &Self::PrivateKey;
 }

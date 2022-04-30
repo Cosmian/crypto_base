@@ -1,3 +1,13 @@
+use crate::{
+    entropy::CsRng,
+    symmetric_crypto::{Nonce as _, SymmetricCrypto},
+    Error, Key as KeyTrait,
+};
+use aes_gcm::{
+    aead::{generic_array::GenericArray, Aead, NewAead, Payload},
+    AeadInPlace, Aes256Gcm,
+}; // Or `Aes128Gcm`
+use rand_core::{CryptoRng, RngCore};
 use std::{
     cmp::min,
     convert::{TryFrom, TryInto},
@@ -5,18 +15,6 @@ use std::{
     ops::DerefMut,
     sync::Mutex,
     vec::Vec,
-};
-
-use aes_gcm::{
-    aead::{generic_array::GenericArray, Aead, NewAead, Payload},
-    AeadInPlace, Aes256Gcm,
-}; // Or `Aes128Gcm`
-use rand_core::{CryptoRng, RngCore};
-
-use crate::{
-    entropy::CsRng,
-    symmetric_crypto::{Key as _, Nonce as _, SymmetricCrypto},
-    Error,
 };
 
 // This implements AES 256 GCM, using a pure rust interface
@@ -29,13 +27,16 @@ pub const MAC_LENGTH: usize = 16;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Key(pub [u8; KEY_LENGTH]);
 
-impl super::Key for Key {
+impl KeyTrait for Key {
     const LENGTH: usize = KEY_LENGTH;
 
     /// Generate a new symmetric random `Key`
-    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        let mut key = Key([0_u8; KEY_LENGTH]);
-        rng.fill_bytes(&mut key.0);
+    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
+        let mut key = Self([0_u8; Self::LENGTH]);
+        rng.lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .fill_bytes(&mut key.0);
         key
     }
 
@@ -69,10 +70,9 @@ impl<'a> TryFrom<&'a [u8]> for Key {
     type Error = Error;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        let len = bytes.len();
-        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
-            given: len,
-            expected: KEY_LENGTH,
+        let b: [u8; Self::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
+            given: bytes.len(),
+            expected: Self::LENGTH,
         })?;
         Ok(Self(b))
     }
@@ -90,21 +90,19 @@ pub struct Nonce(pub [u8; NONCE_LENGTH]);
 impl super::Nonce for Nonce {
     const LENGTH: usize = NONCE_LENGTH;
 
-    fn new(rng: &mut CsRng) -> Self {
-        let mut nonce = Nonce([0_u8; NONCE_LENGTH]);
-        rng.fill_bytes(&mut nonce.0);
-        nonce
-    }
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Error> {
-        Self::try_from_slice(bytes.as_slice())
+    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
+        let mut bytes = [0_u8; Self::LENGTH];
+        rng.lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .fill_bytes(&mut bytes);
+        Self(bytes)
     }
 
     fn try_from_slice(bytes: &[u8]) -> Result<Self, Error> {
-        let len = bytes.len();
-        let b: [u8; NONCE_LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
-            given: len,
-            expected: NONCE_LENGTH,
+        let b: [u8; Self::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
+            given: bytes.len(),
+            expected: Self::LENGTH,
         })?;
         Ok(Self(b))
     }
@@ -137,6 +135,14 @@ impl super::Nonce for Nonce {
     }
 }
 
+impl TryFrom<Vec<u8>> for Nonce {
+    type Error = Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from_slice(bytes.as_slice())
+    }
+}
+
 impl From<Nonce> for Vec<u8> {
     fn from(n: Nonce) -> Vec<u8> {
         n.0.to_vec()
@@ -156,7 +162,7 @@ impl Display for Nonce {
 }
 
 pub struct Aes256GcmCrypto {
-    rng: Mutex<CsRng>,
+    pub(crate) rng: Mutex<CsRng>,
 }
 
 impl Display for Aes256GcmCrypto {
@@ -199,30 +205,6 @@ impl SymmetricCrypto for Aes256GcmCrypto {
             NONCE_LENGTH * 8,
             MAC_LENGTH * 8
         )
-    }
-
-    fn generate_random_bytes(&self, len: usize) -> Vec<u8> {
-        self.rng
-            .lock()
-            .expect("a mutex lock failed")
-            .generate_random_bytes(len)
-    }
-
-    fn generate_key_from_rnd(rnd_bytes: &[u8]) -> Result<Self::Key, Error> {
-        Self::Key::try_from(rnd_bytes)
-    }
-
-    fn generate_key(&self) -> Self::Key {
-        Key::new(
-            self.rng
-                .lock()
-                .expect("Cannot get a hold on the mutex")
-                .deref_mut(),
-        )
-    }
-
-    fn generate_nonce(&self) -> Self::Nonce {
-        Nonce::new(&mut self.rng.lock().expect("Cannot get a hold on the mutex"))
     }
 
     fn encrypt(
@@ -342,20 +324,20 @@ mod tests {
 
     #[test]
     fn test_key() {
-        let mut cs_rng = CsRng::default();
-        let key_1 = Key::new(&mut cs_rng);
+        let cs_rng = Mutex::new(CsRng::new());
+        let key_1 = Key::new(&cs_rng);
         assert_eq!(KEY_LENGTH, key_1.0.len());
-        let key_2 = Key::new(&mut cs_rng);
+        let key_2 = Key::new(&cs_rng);
         assert_eq!(KEY_LENGTH, key_2.0.len());
         assert_ne!(key_1, key_2);
     }
 
     #[test]
     fn test_nonce() {
-        let mut cs_rng = CsRng::default();
-        let nonce_1 = Nonce::new(&mut cs_rng);
+        let cs_rng = Mutex::new(CsRng::new());
+        let nonce_1 = Nonce::new(&cs_rng);
         assert_eq!(NONCE_LENGTH, nonce_1.0.len());
-        let nonce_2 = Nonce::new(&mut cs_rng);
+        let nonce_2 = Nonce::new(&cs_rng);
         assert_eq!(NONCE_LENGTH, nonce_2.0.len());
         assert_ne!(nonce_1, nonce_2);
     }
@@ -373,10 +355,14 @@ mod tests {
 
     #[test]
     fn test_encryption_decryption_combined() -> anyhow::Result<()> {
-        let mut cs_rng = CsRng::default();
-        let key = Key::new(&mut cs_rng);
-        let bytes = cs_rng.generate_random_bytes(8192);
-        let iv = Nonce::new(&mut cs_rng);
+        let cs_rng = Mutex::new(CsRng::new());
+        let key = Key::new(&cs_rng);
+        let bytes = cs_rng
+            .lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .generate_random_bytes(8192);
+        let iv = Nonce::new(&cs_rng);
         // no additional data
         let encrypted_result = encrypt_combined(&key, &bytes, &iv, None)?;
         assert_ne!(encrypted_result, bytes);
@@ -384,7 +370,11 @@ mod tests {
         let recovered = decrypt_combined(&key, encrypted_result.as_slice(), &iv, None)?;
         assert_eq!(bytes, recovered);
         // additional data
-        let ad = cs_rng.generate_random_bytes(42);
+        let ad = cs_rng
+            .lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .generate_random_bytes(42);
         let encrypted_result = encrypt_combined(&key, &bytes, &iv, Some(&ad))?;
         assert_ne!(encrypted_result, bytes);
         assert_eq!(bytes.len() + MAC_LENGTH, encrypted_result.len());
@@ -395,10 +385,14 @@ mod tests {
 
     #[test]
     fn test_encryption_decryption_detached() -> anyhow::Result<()> {
-        let mut cs_rng = CsRng::default();
-        let key = Key::new(&mut cs_rng);
-        let bytes = cs_rng.generate_random_bytes(8192);
-        let iv = Nonce::new(&mut cs_rng);
+        let cs_rng = Mutex::new(CsRng::new());
+        let key = Key::new(&cs_rng);
+        let bytes = cs_rng
+            .lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .generate_random_bytes(8192);
+        let iv = Nonce::new(&cs_rng);
         // no additional data
         let mut data = bytes.clone();
         let tag = encrypt_in_place_detached(&key, &mut data, &iv, None)?;
@@ -408,7 +402,11 @@ mod tests {
         decrypt_in_place_detached(&key, &mut data, &tag, &iv, None)?;
         assert_eq!(bytes, data);
         // // additional data
-        let ad = cs_rng.generate_random_bytes(42);
+        let ad = cs_rng
+            .lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .generate_random_bytes(42);
         let mut data = bytes.clone();
         let tag = encrypt_in_place_detached(&key, &mut data, &iv, Some(&ad))?;
         assert_ne!(bytes, data);
