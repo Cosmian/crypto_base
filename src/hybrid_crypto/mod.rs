@@ -17,7 +17,6 @@ mod scanner;
 pub use block::Block;
 pub use dem::DemAes;
 pub use header::{Header, Metadata};
-pub use kem::ElGammalKemAesX25519;
 use rand_core::{CryptoRng, RngCore};
 pub use scanner::BytesScanner;
 
@@ -26,9 +25,9 @@ pub use scanner::BytesScanner;
 /// scheme.
 ///
 /// TODO: should the KDF used be specified here?
-pub trait Kem<T: AsymmetricCrypto> {
+pub trait Kem: AsymmetricCrypto {
     /// KEM ciphertext
-    type CipherText;
+    type Encapsulation;
 
     /// KEM secret key
     type SecretKey;
@@ -37,23 +36,23 @@ pub trait Kem<T: AsymmetricCrypto> {
     fn description() -> String;
 
     /// Generate an asymmetric key pair
-    fn key_gen<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> <T as AsymmetricCrypto>::KeyPair;
+    fn key_gen<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> <Self as AsymmetricCrypto>::KeyPair;
 
     /// Generate the ciphertext and keying data.
     ///
     /// - `pk`  : public key
     fn encaps<R: RngCore + CryptoRng>(
         rng: &Mutex<R>,
-        pk: &<<T as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
-    ) -> Result<(Self::CipherText, Self::SecretKey), Error>;
+        pk: &<<Self as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
+    ) -> Result<(Self::Encapsulation, Self::SecretKey), Error>;
 
     /// Generate the keying data from the given ciphertext and private key.
     ///
     /// - `sk`  : private key
     /// - `C0`  : ciphertext
     fn decaps(
-        sk: &<<T as AsymmetricCrypto>::KeyPair as KeyPair>::PrivateKey,
-        C0: &Self::CipherText,
+        sk: &<<Self as AsymmetricCrypto>::KeyPair as KeyPair>::PrivateKey,
+        E: &Self::Encapsulation,
     ) -> Result<Self::SecretKey, Error>;
 }
 

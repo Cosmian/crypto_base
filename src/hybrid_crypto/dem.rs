@@ -85,9 +85,9 @@ impl Dem<Aes256GcmCrypto> for DemAes {
 mod tests {
     use super::*;
     use crate::{
-        asymmetric::KeyPair,
+        asymmetric::{ristretto::X25519Crypto, KeyPair},
         entropy::CsRng,
-        hybrid_crypto::{kem::ElGammalKemAesX25519, Kem},
+        hybrid_crypto::Kem,
     };
     use anyhow::Result;
     use std::sync::Mutex;
@@ -97,8 +97,8 @@ mod tests {
         let m = b"my secret message";
         let L = b"public tag";
         let rng = Mutex::new(CsRng::new());
-        let key_pair = ElGammalKemAesX25519::key_gen(&rng);
-        let (_, K) = ElGammalKemAesX25519::encaps(&rng, key_pair.public_key())
+        let key_pair = X25519Crypto::key_gen(&rng);
+        let (_, K) = X25519Crypto::encaps(&rng, key_pair.public_key())
             .map_err(|err| anyhow::eyre!("{:?}", err))?;
         let c = DemAes::encrypt(&rng, &K, L, m)?;
         let res = DemAes::decrypt(&K, L, &c)?;
