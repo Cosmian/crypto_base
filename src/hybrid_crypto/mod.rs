@@ -26,6 +26,9 @@ pub use scanner::BytesScanner;
 ///
 /// TODO: should the KDF used be specified here?
 pub trait Kem: AsymmetricCrypto {
+    /// Length of the sescret key
+    const KEY_LENGTH: usize;
+
     /// KEM ciphertext
     type Encapsulation;
 

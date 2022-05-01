@@ -4,9 +4,7 @@ use crate::{
         AsymmetricCrypto, KeyPair,
     },
     hybrid_crypto::{Error, Kem},
-    kdf,
-    symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, Nonce, SymmetricCrypto},
-    Key,
+    kdf, Key,
 };
 use rand_core::{CryptoRng, RngCore};
 use std::{convert::TryFrom, sync::Mutex};
@@ -14,6 +12,7 @@ use std::{convert::TryFrom, sync::Mutex};
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
 impl Kem for X25519Crypto {
+    const KEY_LENGTH: usize = 256;
     type Encapsulation = Vec<u8>;
     type SecretKey = Vec<u8>;
 
@@ -43,12 +42,7 @@ impl Kem for X25519Crypto {
         let mut b = [0u8; X25519PublicKey::LENGTH + X25519PrivateKey::LENGTH];
         b[..X25519PublicKey::LENGTH].clone_from_slice(&PEH);
         b[X25519PublicKey::LENGTH..].clone_from_slice(&E);
-        let K = kdf::hkdf_256(
-            &b,
-            <Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH
-                + <Aes256GcmCrypto as SymmetricCrypto>::Nonce::LENGTH,
-            HKDF_INFO,
-        )?;
+        let K = kdf::hkdf_256(&b, Self::KEY_LENGTH, HKDF_INFO)?;
         Ok((E, K))
     }
 
@@ -60,17 +54,12 @@ impl Kem for X25519Crypto {
         // compute the shared secret
         let h = <X25519PublicKey>::try_from(E.as_slice())? * sk;
 
-        // TODO: check it is not null -> implement `is_zero`
+        // TODO: check `h` is not null -> implement `is_zero`
+
         let mut b = [0u8; X25519PublicKey::LENGTH + X25519PrivateKey::LENGTH];
         b[..X25519PublicKey::LENGTH].clone_from_slice(&h.as_bytes());
         b[X25519PublicKey::LENGTH..].clone_from_slice(E);
-
-        kdf::hkdf_256(
-            &b,
-            <Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH
-                + <Aes256GcmCrypto as SymmetricCrypto>::Nonce::LENGTH,
-            HKDF_INFO,
-        )
+        kdf::hkdf_256(&b, Self::KEY_LENGTH, HKDF_INFO)
     }
 }
 
