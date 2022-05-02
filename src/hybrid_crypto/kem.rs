@@ -10,8 +10,6 @@ const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
 impl Kem for X25519Crypto {
     const KEY_LENGTH: usize = 256;
-    type Encapsulation = Vec<u8>;
-    type SecretKey = Vec<u8>;
 
     fn description() -> String {
         todo!()
@@ -24,7 +22,7 @@ impl Kem for X25519Crypto {
     fn encaps<R: RngCore + CryptoRng>(
         rng: &Mutex<R>,
         pk: &<Self::KeyPair as KeyPair>::PublicKey,
-    ) -> Result<(Self::Encapsulation, Self::SecretKey), Error> {
+    ) -> Result<(Vec<u8>, Vec<u8>), Error> {
         let ephemeral_keypair = Self::key_gen(rng);
 
         // encapsulation
@@ -42,13 +40,10 @@ impl Kem for X25519Crypto {
         Ok((K, E))
     }
 
-    fn decaps(
-        sk: &<Self::KeyPair as KeyPair>::PrivateKey,
-        E: &Self::Encapsulation,
-    ) -> Result<Self::SecretKey, Error> {
+    fn decaps(sk: &<Self::KeyPair as KeyPair>::PrivateKey, E: &[u8]) -> Result<Vec<u8>, Error> {
         // case CheckMod = 1: the ciphertext should map to valid public key
         // compute the shared secret
-        let h = <Self::KeyPair as KeyPair>::PublicKey::try_from(E.as_slice())? * sk;
+        let h = <Self::KeyPair as KeyPair>::PublicKey::try_from(E)? * sk;
 
         // TODO: check `h` is not null -> implement `is_zero`
         let PEH = h.as_bytes();
