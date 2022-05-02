@@ -58,11 +58,23 @@ pub trait Kem: AsymmetricCrypto {
 }
 
 pub trait Dem: SymmetricCrypto {
+    /// Encapsulate data using a KEM-generated secret key `K`.
+    ///
+    /// - `rng` : secure random number generator
+    /// - `K`   : KEM-generated secret key
+    /// - `L`   : optional label to use in the authentification method
+    /// - `D`   : data to encapsulate
     fn encaps<R: RngCore + CryptoRng>(
         rng: &Mutex<R>,
         K: &[u8],
         L: &[u8],
-        m: &[u8],
+        D: &[u8],
     ) -> Result<Vec<u8>, Error>;
-    fn decaps(K: &[u8], L: &[u8], c: &[u8]) -> Result<Vec<u8>, Error>;
+
+    /// Decapsulate using a KEM-generated secret key `K`.
+    ///
+    /// - `K`   : KEM-generated secret key
+    /// - `L`   : optional label to use in the authentification method
+    /// - `E`   : data encapsulation
+    fn decaps(K: &[u8], L: &[u8], E: &[u8]) -> Result<Vec<u8>, Error>;
 }

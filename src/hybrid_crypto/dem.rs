@@ -11,7 +11,7 @@ impl Dem for Aes256GcmCrypto {
         rng: &Mutex<R>,
         K: &[u8],
         L: &[u8],
-        m: &[u8],
+        D: &[u8],
     ) -> Result<Vec<u8>, Error> {
         if K.len() < Self::Key::LENGTH {
             return Err(Error::SizeError {
@@ -23,14 +23,14 @@ impl Dem for Aes256GcmCrypto {
         // there is no need for parsing a MAC key
         let key = Self::Key::try_from(&K[..Self::Key::LENGTH])?;
         let nonce = Self::Nonce::new(rng);
-        let mut c = Self::encrypt(&key, m, &nonce, Some(L))
+        let mut c = Self::encrypt(&key, D, &nonce, Some(L))
             .map_err(|err| Error::EncryptionError { err })?;
         let mut res: Vec<u8> = nonce.into();
         res.append(&mut c);
         Ok(res)
     }
 
-    fn decaps(K: &[u8], L: &[u8], c: &[u8]) -> Result<Vec<u8>, Error> {
+    fn decaps(K: &[u8], L: &[u8], E: &[u8]) -> Result<Vec<u8>, Error> {
         if K.len() < Self::Key::LENGTH {
             return Err(Error::SizeError {
                 given: K.len(),
@@ -40,8 +40,8 @@ impl Dem for Aes256GcmCrypto {
         // AES GCM includes an authentification method
         // there is no need for parsing a MAC key
         let key = Self::Key::try_from(&K[..Self::Key::LENGTH])?;
-        let nonce = Self::Nonce::try_from(&c[..Self::Nonce::LENGTH])?;
-        Self::decrypt(&key, &c[Self::Nonce::LENGTH..], &nonce, Some(L))
+        let nonce = Self::Nonce::try_from(&E[..Self::Nonce::LENGTH])?;
+        Self::decrypt(&key, &E[Self::Nonce::LENGTH..], &nonce, Some(L))
             .map_err(|err| Error::EncryptionError { err })
     }
 }
