@@ -39,7 +39,7 @@ impl Kem for X25519Crypto {
         b[..<Self::KeyPair as KeyPair>::PublicKey::LENGTH].clone_from_slice(&PEH);
         b[<Self::KeyPair as KeyPair>::PublicKey::LENGTH..].clone_from_slice(&E);
         let K = kdf::hkdf_256(&b, Self::KEY_LENGTH, HKDF_INFO)?;
-        Ok((E, K))
+        Ok((K, E))
     }
 
     fn decaps(
@@ -73,7 +73,7 @@ mod tests {
     fn test_kem() -> Result<()> {
         let rng = Mutex::new(CsRng::new());
         let key_pair = X25519Crypto::key_gen(&rng);
-        let (E, K) = X25519Crypto::encaps(&rng, key_pair.public_key())
+        let (K, E) = X25519Crypto::encaps(&rng, key_pair.public_key())
             .map_err(|err| anyhow::eyre!("{:?}", err))?;
         let res = X25519Crypto::decaps(key_pair.private_key(), &E)
             .map_err(|err| anyhow::eyre!("{:?}", err))?;

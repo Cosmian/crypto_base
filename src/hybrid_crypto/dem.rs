@@ -63,7 +63,7 @@ mod tests {
         let L = b"public tag";
         let rng = Mutex::new(CsRng::new());
         let key_pair = X25519Crypto::key_gen(&rng);
-        let (_, K) = X25519Crypto::encaps(&rng, key_pair.public_key())
+        let (K, _) = X25519Crypto::encaps(&rng, key_pair.public_key())
             .map_err(|err| anyhow::eyre!("{:?}", err))?;
         let c = Aes256GcmCrypto::encaps(&rng, &K, L, m)?;
         let res = Aes256GcmCrypto::decaps(&K, L, &c)?;

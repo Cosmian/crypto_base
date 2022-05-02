@@ -39,18 +39,18 @@ pub trait Kem: AsymmetricCrypto {
     /// Generate an asymmetric key pair
     fn key_gen<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> <Self as AsymmetricCrypto>::KeyPair;
 
-    /// Generate the ciphertext and keying data.
+    /// Generate the secret key and its encapsulation.
     ///
     /// - `pk`  : public key
     fn encaps<R: RngCore + CryptoRng>(
         rng: &Mutex<R>,
         pk: &<<Self as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
-    ) -> Result<(Self::Encapsulation, Self::SecretKey), Error>;
+    ) -> Result<(Self::SecretKey, Self::Encapsulation), Error>;
 
     /// Generate the keying data from the given ciphertext and private key.
     ///
     /// - `sk`  : private key
-    /// - `C0`  : ciphertext
+    /// - `E`   : encapsulation
     fn decaps(
         sk: &<<Self as AsymmetricCrypto>::KeyPair as KeyPair>::PrivateKey,
         E: &Self::Encapsulation,

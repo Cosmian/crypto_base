@@ -1,11 +1,11 @@
-use hex::FromHexError;
 use rand_core::{CryptoRng, RngCore};
 use std::{
     convert::TryFrom,
     fmt::{Debug, Display},
     sync::Mutex,
 };
-use thiserror::Error;
+
+mod error;
 
 pub mod aes_hash_mmo;
 pub mod asymmetric;
@@ -27,23 +27,7 @@ pub mod primes;
 #[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
 pub mod sodium_bindings;
 
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("Wrong size: {given} given should be {expected}")]
-    SizeError { given: usize, expected: usize },
-    #[error("Failed to parse")]
-    HexParseError { err: FromHexError },
-    #[error("Failed to convert")]
-    ConversionError,
-    #[error("{err}")]
-    KdfError { err: hkdf::InvalidLength },
-    #[error("Key generation error")]
-    KeyGenError,
-    #[error("{err:?}")]
-    EncryptionError { err: anyhow::Report },
-    #[error("{err:?}")]
-    DecryptionError { err: anyhow::Report },
-}
+pub use crate::error::Error;
 
 pub trait Key: TryFrom<Vec<u8>, Error = Error> + PartialEq + Display + Debug + Sync + Send {
     const LENGTH: usize;

@@ -194,8 +194,11 @@ impl KeyPair for X25519KeyPair {
     fn private_key(&self) -> &Self::PrivateKey {
         &self.private_key
     }
+}
 
-    fn as_bytes(&self) -> Vec<u8> {
+#[allow(clippy::from_over_into)]
+impl Into<Vec<u8>> for X25519KeyPair {
+    fn into(self) -> Vec<u8> {
         let mut bytes = self.private_key().as_bytes();
         bytes.append(&mut self.public_key().as_bytes());
         bytes

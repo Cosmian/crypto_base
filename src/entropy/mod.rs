@@ -15,7 +15,7 @@ impl CsRng {
         }
     }
 
-    /// Generate an vector of random bytes
+    /// Generate a vector of random bytes
     pub fn generate_random_bytes(&mut self, len: usize) -> Vec<u8> {
         let mut bytes = vec![0_u8; len];
         self.rng.fill_bytes(&mut bytes);
