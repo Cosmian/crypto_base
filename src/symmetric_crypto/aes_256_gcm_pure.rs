@@ -44,13 +44,6 @@ impl KeyTrait for Key {
     }
 }
 
-impl Key {
-    #[must_use]
-    pub fn as_array(&self) -> [u8; 32] {
-        self.0
-    }
-}
-
 impl From<Key> for Vec<u8> {
     fn from(k: Key) -> Vec<u8> {
         k.0.to_vec()
@@ -139,6 +132,14 @@ impl TryFrom<Vec<u8>> for Nonce {
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
         Self::try_from_slice(bytes.as_slice())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for Nonce {
+    type Error = Error;
+
+    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+        Self::try_from_slice(bytes)
     }
 }
 

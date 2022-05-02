@@ -210,7 +210,7 @@ fn u32_len(slice: &[u8]) -> anyhow::Result<[u8; 4]> {
 mod tests {
 
     use crate::{
-        asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto},
+        asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
         entropy::CsRng,
         hybrid_crypto::{header::Metadata, Header},
         symmetric_crypto::aes_256_gcm_pure::Aes256GcmCrypto,
@@ -256,14 +256,14 @@ mod tests {
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
-            &key_pair.public_key,
+            key_pair.public_key(),
             None,
             metadata_full.clone(),
         )?;
 
         let bytes = header.as_bytes(&rng)?;
         let header_ =
-            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, &key_pair.private_key)?;
+            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, key_pair.private_key())?;
 
         assert_eq!(&metadata_full, &header_.metadata);
 
@@ -274,14 +274,14 @@ mod tests {
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
-            &key_pair.public_key,
+            key_pair.public_key(),
             None,
             metadata_sec.clone(),
         )?;
 
         let bytes = header.as_bytes(&rng)?;
         let header_ =
-            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, &key_pair.private_key)?;
+            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, key_pair.private_key())?;
 
         assert_eq!(&metadata_sec, &header_.metadata);
 
@@ -292,14 +292,14 @@ mod tests {
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
-            &key_pair.public_key,
+            key_pair.public_key(),
             None,
             metadata_empty.clone(),
         )?;
 
         let bytes = header.as_bytes(&rng)?;
         let header_ =
-            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, &key_pair.private_key)?;
+            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, key_pair.private_key())?;
 
         assert_eq!(&metadata_empty, &header_.metadata);
         Ok(())

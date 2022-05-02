@@ -1,3 +1,4 @@
+use hex::FromHexError;
 use rand_core::{CryptoRng, RngCore};
 use std::{
     convert::TryFrom,
@@ -31,17 +32,17 @@ pub enum Error {
     #[error("Wrong size: {given} given should be {expected}")]
     SizeError { given: usize, expected: usize },
     #[error("Failed to parse")]
-    ParseError,
+    HexParseError { err: FromHexError },
     #[error("Failed to convert")]
     ConversionError,
     #[error("{err}")]
     KdfError { err: hkdf::InvalidLength },
     #[error("Key generation error")]
     KeyGenError,
-    #[error("Encryption error")]
-    EncryptionError,
-    #[error("Decryption error")]
-    DecryptionError,
+    #[error("{err:?}")]
+    EncryptionError { err: anyhow::Report },
+    #[error("{err:?}")]
+    DecryptionError { err: anyhow::Report },
 }
 
 pub trait Key: TryFrom<Vec<u8>, Error = Error> + PartialEq + Display + Debug + Sync + Send {

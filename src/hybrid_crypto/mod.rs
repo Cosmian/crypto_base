@@ -1,12 +1,11 @@
 #![allow(non_snake_case)]
 
-use std::sync::Mutex;
-
 use crate::{
     asymmetric::{AsymmetricCrypto, KeyPair},
     symmetric_crypto::SymmetricCrypto,
-    Error, Key,
+    Error,
 };
+use std::sync::Mutex;
 
 mod block;
 mod dem;
@@ -15,7 +14,6 @@ mod kem;
 mod scanner;
 
 pub use block::Block;
-pub use dem::DemAes;
 pub use header::{Header, Metadata};
 use rand_core::{CryptoRng, RngCore};
 pub use scanner::BytesScanner;
@@ -59,13 +57,12 @@ pub trait Kem: AsymmetricCrypto {
     ) -> Result<Self::SecretKey, Error>;
 }
 
-pub trait Dem<T: SymmetricCrypto> {
-    const KEY_LENGTH: usize = <<T as SymmetricCrypto>::Key as Key>::LENGTH;
-    fn encrypt<R: RngCore + CryptoRng>(
+pub trait Dem: SymmetricCrypto {
+    fn encaps<R: RngCore + CryptoRng>(
         rng: &Mutex<R>,
         K: &[u8],
         L: &[u8],
         m: &[u8],
     ) -> Result<Vec<u8>, Error>;
-    fn decrypt(K: &[u8], L: &[u8], c: &[u8]) -> Result<Vec<u8>, Error>;
+    fn decaps(K: &[u8], L: &[u8], c: &[u8]) -> Result<Vec<u8>, Error>;
 }

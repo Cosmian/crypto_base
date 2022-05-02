@@ -3,81 +3,46 @@ use crate::{
     symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, Nonce, SymmetricCrypto},
     Error, Key,
 };
-use log::error;
 use rand_core::{CryptoRng, RngCore};
-use std::{
-    convert::TryFrom,
-    ops::{Deref, DerefMut},
-    sync::Mutex,
-};
+use std::{convert::TryFrom, sync::Mutex};
 
-pub struct DemAes(Aes256GcmCrypto);
-
-impl Deref for DemAes {
-    type Target = Aes256GcmCrypto;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for DemAes {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl Dem<Aes256GcmCrypto> for DemAes {
-    const KEY_LENGTH: usize = <Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH;
-
-    fn encrypt<R: RngCore + CryptoRng>(
+impl Dem for Aes256GcmCrypto {
+    fn encaps<R: RngCore + CryptoRng>(
         rng: &Mutex<R>,
         K: &[u8],
         L: &[u8],
         m: &[u8],
     ) -> Result<Vec<u8>, Error> {
-        if K.len() < Self::KEY_LENGTH {
+        if K.len() < Self::Key::LENGTH {
             return Err(Error::SizeError {
                 given: K.len(),
-                expected: Self::KEY_LENGTH,
+                expected: Self::Key::LENGTH,
             });
         }
-        let k1 = K[..<Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH].to_vec();
-        let key = <Aes256GcmCrypto as SymmetricCrypto>::Key::try_from(k1)?;
-        let nonce = <Aes256GcmCrypto as SymmetricCrypto>::Nonce::new(rng);
-        // this encryption method comprises the MAC tag
-        let mut c = Aes256GcmCrypto::encrypt(&key, m, &nonce, Some(L)).map_err(|err| {
-            error!("{:?}", err);
-            Error::EncryptionError
-        })?;
+        // AES GCM includes an authentification method
+        // there is no need for parsing a MAC key
+        let key = Self::Key::try_from(&K[..Self::Key::LENGTH])?;
+        let nonce = Self::Nonce::new(rng);
+        let mut c = Self::encrypt(&key, m, &nonce, Some(L))
+            .map_err(|err| Error::EncryptionError { err })?;
         let mut res: Vec<u8> = nonce.into();
         res.append(&mut c);
         Ok(res)
     }
 
-    fn decrypt(K: &[u8], L: &[u8], c: &[u8]) -> Result<Vec<u8>, Error> {
-        if K.len() < Self::KEY_LENGTH {
+    fn decaps(K: &[u8], L: &[u8], c: &[u8]) -> Result<Vec<u8>, Error> {
+        if K.len() < Self::Key::LENGTH {
             return Err(Error::SizeError {
                 given: K.len(),
-                expected: Self::KEY_LENGTH,
+                expected: Self::Key::LENGTH,
             });
         }
-        let k1 = K[..<Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH].to_vec();
-        let key = <Aes256GcmCrypto as SymmetricCrypto>::Key::try_from(k1)?;
-        let nonce = <Aes256GcmCrypto as SymmetricCrypto>::Nonce::try_from(
-            c[..<Aes256GcmCrypto as SymmetricCrypto>::Nonce::LENGTH].to_vec(),
-        )?;
-        // this encryption method comprises the authentification tag
-        Aes256GcmCrypto::decrypt(
-            &key,
-            &c[<Aes256GcmCrypto as SymmetricCrypto>::Nonce::LENGTH..],
-            &nonce,
-            Some(L),
-        )
-        .map_err(|err| {
-            error!("{:?}", err);
-            Error::EncryptionError
-        })
+        // AES GCM includes an authentification method
+        // there is no need for parsing a MAC key
+        let key = Self::Key::try_from(&K[..Self::Key::LENGTH])?;
+        let nonce = Self::Nonce::try_from(&c[..Self::Nonce::LENGTH])?;
+        Self::decrypt(&key, &c[Self::Nonce::LENGTH..], &nonce, Some(L))
+            .map_err(|err| Error::EncryptionError { err })
     }
 }
 
@@ -100,8 +65,8 @@ mod tests {
         let key_pair = X25519Crypto::key_gen(&rng);
         let (_, K) = X25519Crypto::encaps(&rng, key_pair.public_key())
             .map_err(|err| anyhow::eyre!("{:?}", err))?;
-        let c = DemAes::encrypt(&rng, &K, L, m)?;
-        let res = DemAes::decrypt(&K, L, &c)?;
+        let c = Aes256GcmCrypto::encaps(&rng, &K, L, m)?;
+        let res = Aes256GcmCrypto::decaps(&K, L, &c)?;
         anyhow::ensure!(res == m, "Decryption error");
         Ok(())
     }

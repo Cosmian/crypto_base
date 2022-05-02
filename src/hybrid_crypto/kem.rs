@@ -1,8 +1,5 @@
 use crate::{
-    asymmetric::{
-        ristretto::{X25519Crypto, X25519PrivateKey, X25519PublicKey},
-        AsymmetricCrypto, KeyPair,
-    },
+    asymmetric::{ristretto::X25519Crypto, KeyPair},
     hybrid_crypto::{Error, Kem},
     kdf, Key,
 };
@@ -20,15 +17,13 @@ impl Kem for X25519Crypto {
         todo!()
     }
 
-    fn key_gen<R: RngCore + CryptoRng>(
-        rng: &Mutex<R>,
-    ) -> <X25519Crypto as AsymmetricCrypto>::KeyPair {
-        <X25519Crypto as AsymmetricCrypto>::KeyPair::new(rng)
+    fn key_gen<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self::KeyPair {
+        Self::KeyPair::new(rng)
     }
 
     fn encaps<R: RngCore + CryptoRng>(
         rng: &Mutex<R>,
-        pk: &<<X25519Crypto as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
+        pk: &<Self::KeyPair as KeyPair>::PublicKey,
     ) -> Result<(Self::Encapsulation, Self::SecretKey), Error> {
         let ephemeral_keypair = Self::key_gen(rng);
 
@@ -39,26 +34,30 @@ impl Kem for X25519Crypto {
         let PEH = (pk * ephemeral_keypair.private_key()).as_bytes();
 
         // generate secret key
-        let mut b = [0u8; X25519PublicKey::LENGTH + X25519PrivateKey::LENGTH];
-        b[..X25519PublicKey::LENGTH].clone_from_slice(&PEH);
-        b[X25519PublicKey::LENGTH..].clone_from_slice(&E);
+        let mut b = [0u8; <Self::KeyPair as KeyPair>::PublicKey::LENGTH
+            + <Self::KeyPair as KeyPair>::PrivateKey::LENGTH];
+        b[..<Self::KeyPair as KeyPair>::PublicKey::LENGTH].clone_from_slice(&PEH);
+        b[<Self::KeyPair as KeyPair>::PublicKey::LENGTH..].clone_from_slice(&E);
         let K = kdf::hkdf_256(&b, Self::KEY_LENGTH, HKDF_INFO)?;
         Ok((E, K))
     }
 
     fn decaps(
-        sk: &<<X25519Crypto as AsymmetricCrypto>::KeyPair as KeyPair>::PrivateKey,
+        sk: &<Self::KeyPair as KeyPair>::PrivateKey,
         E: &Self::Encapsulation,
     ) -> Result<Self::SecretKey, Error> {
         // case CheckMod = 1: the ciphertext should map to valid public key
         // compute the shared secret
-        let h = <X25519PublicKey>::try_from(E.as_slice())? * sk;
+        let h = <Self::KeyPair as KeyPair>::PublicKey::try_from(E.as_slice())? * sk;
 
         // TODO: check `h` is not null -> implement `is_zero`
+        let PEH = h.as_bytes();
 
-        let mut b = [0u8; X25519PublicKey::LENGTH + X25519PrivateKey::LENGTH];
-        b[..X25519PublicKey::LENGTH].clone_from_slice(&h.as_bytes());
-        b[X25519PublicKey::LENGTH..].clone_from_slice(E);
+        // generate secret key
+        let mut b = [0u8; <Self::KeyPair as KeyPair>::PublicKey::LENGTH
+            + <Self::KeyPair as KeyPair>::PrivateKey::LENGTH];
+        b[..<Self::KeyPair as KeyPair>::PublicKey::LENGTH].clone_from_slice(&PEH);
+        b[<Self::KeyPair as KeyPair>::PublicKey::LENGTH..].clone_from_slice(E);
         kdf::hkdf_256(&b, Self::KEY_LENGTH, HKDF_INFO)
     }
 }

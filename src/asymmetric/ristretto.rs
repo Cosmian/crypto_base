@@ -13,7 +13,6 @@ use curve25519_dalek::{
     ristretto::{CompressedRistretto, RistrettoPoint},
     scalar::Scalar,
 };
-use log::error;
 use rand_core::{CryptoRng, RngCore};
 use std::{
     convert::{TryFrom, TryInto},
@@ -65,10 +64,7 @@ impl TryFrom<&[u8]> for X25519PrivateKey {
             given: len,
             expected: <Self>::LENGTH,
         })?;
-        let scalar = Scalar::from_canonical_bytes(bytes).ok_or_else(|| {
-            error!("Invalid private key bytes");
-            Error::ConversionError
-        })?;
+        let scalar = Scalar::from_canonical_bytes(bytes).ok_or(Error::ConversionError)?;
         Ok(X25519PrivateKey(scalar))
     }
 }
@@ -78,10 +74,7 @@ impl TryFrom<&str> for X25519PrivateKey {
     type Error = Error;
 
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
-        let bytes = hex::decode(value).map_err(|e| {
-            error!("Invalid hex encoded private key: {}", e);
-            Error::ParseError
-        })?;
+        let bytes = hex::decode(value).map_err(|err| Error::HexParseError { err })?;
         X25519PrivateKey::try_from(bytes)
     }
 }
@@ -126,7 +119,7 @@ impl TryFrom<Vec<u8>> for X25519PublicKey {
 impl TryFrom<&[u8]> for X25519PublicKey {
     type Error = Error;
 
-    fn try_from(value: &[u8]) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let len = value.len();
         if len != <X25519PublicKey>::LENGTH {
             return Err(Error::SizeError {
@@ -135,10 +128,9 @@ impl TryFrom<&[u8]> for X25519PublicKey {
             });
         };
         let compressed = CompressedRistretto::from_slice(value);
-        let point = compressed.decompress().ok_or_else(|| {
-            error!("Could not decompress the Ristretto point");
-            Error::ConversionError
-        })?;
+        let point = compressed
+            .decompress()
+            .ok_or(Self::Error::ConversionError)?;
         Ok(X25519PublicKey(point))
     }
 }
@@ -148,10 +140,7 @@ impl TryFrom<&str> for X25519PublicKey {
     type Error = Error;
 
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
-        let bytes = hex::decode(value).map_err(|e| {
-            error!("Invalid hex encoded public key: {}", e);
-            Error::ParseError
-        })?;
+        let bytes = hex::decode(value).map_err(|err| Error::HexParseError { err })?;
         X25519PublicKey::try_from(bytes.as_slice())
     }
 }
@@ -181,8 +170,8 @@ impl<'a> Mul<&'a X25519PrivateKey> for X25519PublicKey {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct X25519KeyPair {
-    pub private_key: X25519PrivateKey,
-    pub public_key: X25519PublicKey,
+    private_key: X25519PrivateKey,
+    public_key: X25519PublicKey,
 }
 
 impl KeyPair for X25519KeyPair {
@@ -247,7 +236,7 @@ impl TryFrom<&[u8]> for X25519KeyPair {
 
 impl Display for X25519KeyPair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", &self.private_key, &self.public_key)
+        write!(f, "{}{}", self.private_key(), self.public_key())
     }
 }
 
@@ -372,10 +361,10 @@ impl AsymmetricCrypto for X25519Crypto {
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         data: &[u8],
     ) -> Result<S::Key, Error> {
-        S::Key::parse(self.decrypt(private_key, data).map_err(|err| {
-            error!("{:?}", err);
-            Error::DecryptionError
-        })?)
+        S::Key::parse(
+            self.decrypt(private_key, data)
+                .map_err(|err| Error::DecryptionError { err })?,
+        )
     }
 
     /// A utility function to generate random bytes from an uniform distribution
