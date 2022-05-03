@@ -12,8 +12,8 @@ pub enum Error {
     KdfError { err: hkdf::InvalidLength },
     #[error("Key generation error")]
     KeyGenError,
-    #[error("{err:?}")]
-    EncryptionError { err: anyhow::Report },
-    #[error("{err:?}")]
-    DecryptionError { err: anyhow::Report },
+    #[error("{err}")]
+    EncryptionError { err: String },
+    #[error("{err}")]
+    DecryptionError { err: String },
 }

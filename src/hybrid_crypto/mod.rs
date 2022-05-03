@@ -44,7 +44,7 @@ pub trait Kem: AsymmetricCrypto {
         pk: &<<Self as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
     ) -> Result<(Vec<u8>, Vec<u8>), Error>;
 
-    /// Generate the keying data from the given ciphertext and private key.
+    /// Generate the secret key from the given encapsulation and private key.
     ///
     /// - `sk`  : private key
     /// - `E`   : encapsulation
@@ -62,7 +62,7 @@ pub trait Dem: SymmetricCrypto {
     ///
     /// - `rng` : secure random number generator
     /// - `K`   : KEM-generated secret key
-    /// - `L`   : optional label to use in the authentification method
+    /// - `L`   : optional label to use in the authentication method
     /// - `D`   : data to encapsulate
     fn encaps<R: RngCore + CryptoRng>(
         rng: &Mutex<R>,
@@ -74,12 +74,12 @@ pub trait Dem: SymmetricCrypto {
     /// Decapsulate using a KEM-generated secret key `K`.
     ///
     /// - `K`   : KEM-generated secret key
-    /// - `L`   : optional label to use in the authentification method
+    /// - `L`   : optional label to use in the authentication method
     /// - `E`   : data encapsulation
     fn decaps(K: &[u8], L: &[u8], E: &[u8]) -> Result<Vec<u8>, Error>;
 }
 
-pub trait HybrideCrypto<T: Kem, U: Dem> {
+pub trait HybridCrypto<T: Kem, U: Dem> {
     fn key_gen<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> T::KeyPair {
         T::key_gen(rng)
     }
@@ -111,4 +111,4 @@ pub trait HybrideCrypto<T: Kem, U: Dem> {
 
 struct HcX25519AesCrypto;
 
-impl HybrideCrypto<X25519Crypto, Aes256GcmCrypto> for HcX25519AesCrypto {}
+impl HybridCrypto<X25519Crypto, Aes256GcmCrypto> for HcX25519AesCrypto {}

@@ -366,7 +366,9 @@ impl AsymmetricCrypto for X25519Crypto {
     ) -> Result<S::Key, Error> {
         S::Key::parse(
             self.decrypt(private_key, data)
-                .map_err(|err| Error::DecryptionError { err })?,
+                .map_err(|err| Error::DecryptionError {
+                    err: err.to_string(),
+                })?,
         )
     }
 
