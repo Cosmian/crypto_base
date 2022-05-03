@@ -3,7 +3,7 @@
 use crate::{
     asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
     symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, SymmetricCrypto},
-    Error,
+    Error, Key,
 };
 use std::sync::Mutex;
 
@@ -24,8 +24,11 @@ pub use scanner::BytesScanner;
 ///
 /// TODO: should the KDF used be specified here?
 pub trait Kem: AsymmetricCrypto {
-    /// Length of the sescret key
-    const KEY_LENGTH: usize;
+    /// Number of bytes of the secret key
+    const SECRET_KEY_LENGTH: usize;
+
+    /// Number of bytes of the encapsulation
+    const ENCAPSULATION_SIZE: usize = <Self::KeyPair as KeyPair>::PublicKey::LENGTH;
 
     /// Describe the scheme in plaintext
     fn description() -> String;
@@ -33,7 +36,7 @@ pub trait Kem: AsymmetricCrypto {
     /// Generate an asymmetric key pair
     fn key_gen<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self::KeyPair;
 
-    /// Generate the secret key and its encapsulation.
+    /// Return `(K, E)` the secret key and its encapsulation.
     ///
     /// - `pk`  : public key
     fn encaps<R: RngCore + CryptoRng>(
@@ -52,6 +55,9 @@ pub trait Kem: AsymmetricCrypto {
 }
 
 pub trait Dem: SymmetricCrypto {
+    /// Number of bytes added to the message length in the ciphertext
+    const ENCRYPTION_OVERHEAD: usize = Self::Key::LENGTH + Self::MAC_LENGTH;
+
     /// Encapsulate data using a KEM-generated secret key `K`.
     ///
     /// - `rng` : secure random number generator
@@ -84,9 +90,13 @@ pub trait HybrideCrypto<T: Kem, U: Dem> {
         L: &[u8],
         m: &[u8],
     ) -> Result<Vec<u8>, Error> {
-        let (K, mut C) = T::encaps(rng, pk)?;
-        C.append(&mut U::encaps(rng, &K, L, m)?);
-        Ok(C)
+        let (K, mut E1) = T::encaps(rng, pk)?;
+        let mut E2 = U::encaps(rng, &K, L, m)?;
+        // allocate the correct number of bytes for the ciphertext
+        let mut res = Vec::with_capacity(T::ENCAPSULATION_SIZE + U::ENCRYPTION_OVERHEAD + m.len());
+        res.append(&mut E1);
+        res.append(&mut E2);
+        Ok(res)
     }
 
     fn decrypt(
@@ -94,8 +104,8 @@ pub trait HybrideCrypto<T: Kem, U: Dem> {
         L: &[u8],
         C: &[u8],
     ) -> Result<Vec<u8>, Error> {
-        let K = T::decaps(sk, &C[..T::KEY_LENGTH])?;
-        U::decaps(&K, L, &C[T::KEY_LENGTH..])
+        let K = T::decaps(sk, &C[..T::SECRET_KEY_LENGTH])?;
+        U::decaps(&K, L, &C[T::SECRET_KEY_LENGTH..])
     }
 }
 

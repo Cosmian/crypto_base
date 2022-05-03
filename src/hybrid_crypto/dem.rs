@@ -25,7 +25,9 @@ impl Dem for Aes256GcmCrypto {
         let nonce = Self::Nonce::new(rng);
         let mut c = Self::encrypt(&key, D, &nonce, Some(L))
             .map_err(|err| Error::EncryptionError { err })?;
-        let mut res: Vec<u8> = nonce.into();
+        // allocate correct byte number
+        let mut res: Vec<u8> = Vec::with_capacity(D.len() + Self::ENCRYPTION_OVERHEAD);
+        res.append(&mut nonce.into());
         res.append(&mut c);
         Ok(res)
     }
