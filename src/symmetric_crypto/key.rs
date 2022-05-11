@@ -29,6 +29,8 @@ impl<const KEY_LENGTH: usize> KeyTrait for Key<KEY_LENGTH> {
     fn as_bytes(&self) -> Vec<u8> {
         self.0.to_vec()
     }
+
+    const LENGTH: usize = KEY_LENGTH;
 }
 
 impl<const KEY_LENGTH: usize> From<Key<KEY_LENGTH>> for Vec<u8> {
