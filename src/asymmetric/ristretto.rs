@@ -6,7 +6,7 @@ use crate::{
         aes_256_gcm_pure::{self, Aes256GcmCrypto},
         Nonce as _, SymmetricCrypto,
     },
-    Error, Key,
+    Error, KeyTrait,
 };
 use curve25519_dalek::{
     constants,
@@ -26,7 +26,7 @@ const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 #[derive(Clone, PartialEq, Debug)]
 pub struct X25519PrivateKey(Scalar);
 
-impl Key for X25519PrivateKey {
+impl KeyTrait for X25519PrivateKey {
     const LENGTH: usize = 32;
 
     fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
@@ -89,7 +89,7 @@ impl Display for X25519PrivateKey {
 #[derive(Clone, PartialEq, Debug)]
 pub struct X25519PublicKey(RistrettoPoint);
 
-impl Key for X25519PublicKey {
+impl KeyTrait for X25519PublicKey {
     const LENGTH: usize = 32; //compressed
 
     fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
@@ -452,7 +452,7 @@ mod test {
     use std::convert::TryFrom;
 
     use super::{AsymmetricCrypto, KeyPair, X25519Crypto, X25519PrivateKey, X25519PublicKey};
-    use crate::{symmetric_crypto::aes_256_gcm_pure, Key};
+    use crate::{symmetric_crypto::aes_256_gcm_pure, KeyTrait};
 
     #[test]
     fn test_generate_key_pair() {

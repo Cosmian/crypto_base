@@ -1,6 +1,6 @@
 use crate::{
     symmetric_crypto::{Nonce as _, SymmetricCrypto},
-    Error, Key as KeyTrait,
+    Error, KeyTrait,
 };
 use aes_gcm::{
     aead::{generic_array::GenericArray, Aead, NewAead, Payload},
@@ -23,63 +23,71 @@ pub const KEY_LENGTH: usize = 32;
 pub const NONCE_LENGTH: usize = 12;
 pub const MAC_LENGTH: usize = 16;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Key(pub [u8; KEY_LENGTH]);
+pub type Key = crate::symmetric_crypto::key::Key<KEY_LENGTH>;
 
-impl KeyTrait for Key {
-    const LENGTH: usize = KEY_LENGTH;
+// #[derive(Debug, Clone, PartialEq)]
+// pub struct Key(pub [u8; KEY_LENGTH]);
 
-    /// Generate a new symmetric random `Key`
-    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
-        let mut key = Self([0_u8; Self::LENGTH]);
-        rng.lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .fill_bytes(&mut key.0);
-        key
-    }
+// impl KeyTrait for Key {
+//     const LENGTH: usize = KEY_LENGTH;
 
-    fn as_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-}
+//     /// Generate a new symmetric random `Key`
+//     fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
+//         let mut key = Self([0_u8; Self::LENGTH]);
+//         rng.lock()
+//             .expect("Could not get a hold on the mutex")
+//             .deref_mut()
+//             .fill_bytes(&mut key.0);
+//         key
+//     }
 
-impl From<Key> for Vec<u8> {
-    fn from(k: Key) -> Vec<u8> {
-        k.0.to_vec()
-    }
-}
+//     fn as_bytes(&self) -> Vec<u8> {
+//         self.0.to_vec()
+//     }
+// }
 
-impl TryFrom<Vec<u8>> for Key {
-    type Error = Error;
+// impl From<Key> for Vec<u8> {
+//     fn from(k: Key) -> Vec<u8> {
+//         k.0.to_vec()
+//     }
+// }
 
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from(bytes.as_slice())
-    }
-}
+// impl TryFrom<Vec<u8>> for Key {
+//     type Error = Error;
 
-impl<'a> TryFrom<&'a [u8]> for Key {
-    type Error = Error;
+//     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+//         Self::try_from(bytes.as_slice())
+//     }
+// }
 
-    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        let b: [u8; Self::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
-            given: bytes.len(),
-            expected: Self::LENGTH,
-        })?;
-        Ok(Self(b))
-    }
-}
+// impl<'a> TryFrom<&'a [u8]> for Key {
+//     type Error = Error;
 
-impl Display for Key {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
+//     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+//         let b: [u8; Self::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
+//             given: bytes.len(),
+//             expected: Self::LENGTH,
+//         })?;
+//         Ok(Self(b))
+//     }
+// }
+
+// impl From<Key> for [u8; KEY_LENGTH] {
+//     fn from(k: Key) -> [u8; KEY_LENGTH] {
+//         k.0
+//     }
+// }
+
+// impl Display for Key {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{}", hex::encode(self.0))
+//     }
+// }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Nonce(pub [u8; NONCE_LENGTH]);
 
-impl super::Nonce for Nonce {
+impl crate::symmetric_crypto::Nonce for Nonce {
     const LENGTH: usize = NONCE_LENGTH;
 
     fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
@@ -146,12 +154,6 @@ impl<'a> TryFrom<&'a [u8]> for Nonce {
 impl From<Nonce> for Vec<u8> {
     fn from(n: Nonce) -> Vec<u8> {
         n.0.to_vec()
-    }
-}
-
-impl From<Key> for [u8; KEY_LENGTH] {
-    fn from(k: Key) -> [u8; KEY_LENGTH] {
-        k.0
     }
 }
 

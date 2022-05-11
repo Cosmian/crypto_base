@@ -29,7 +29,7 @@ pub mod sodium_bindings;
 
 pub use crate::error::Error;
 
-pub trait Key:
+pub trait KeyTrait:
     TryFrom<Vec<u8>, Error = Error> + PartialEq + Display + Debug + Sync + Send + Clone
 {
     const LENGTH: usize;

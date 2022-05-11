@@ -1,12 +1,22 @@
-use std::{cmp::min, convert::TryInto, fmt::Display, vec::Vec};
+use std::{
+    cmp::min,
+    convert::{TryFrom, TryInto},
+    fmt::Display,
+    sync::Mutex,
+    vec::Vec,
+};
 
+use rand::{CryptoRng, RngCore};
 use tracing::debug;
 
-use super::{Key as GenericKey, Nonce as GenericNonce, SymmetricCrypto, MIN_DATA_LENGTH};
-use crate::sodium_bindings::{
-    crypto_aead_xchacha20poly1305_ietf_ABYTES, crypto_aead_xchacha20poly1305_ietf_KEYBYTES,
-    crypto_aead_xchacha20poly1305_ietf_NPUBBYTES, crypto_aead_xchacha20poly1305_ietf_decrypt,
-    crypto_aead_xchacha20poly1305_ietf_encrypt, randombytes_buf, sodium_increment, sodium_init,
+use crate::{
+    sodium_bindings::{
+        crypto_aead_xchacha20poly1305_ietf_ABYTES, crypto_aead_xchacha20poly1305_ietf_KEYBYTES,
+        crypto_aead_xchacha20poly1305_ietf_NPUBBYTES, crypto_aead_xchacha20poly1305_ietf_decrypt,
+        crypto_aead_xchacha20poly1305_ietf_encrypt, randombytes_buf, sodium_increment, sodium_init,
+    },
+    symmetric_crypto::{Key as _, Nonce as GenericNonce, SymmetricCrypto, MIN_DATA_LENGTH},
+    Error, Key as KeyTrait,
 };
 
 pub const KEY_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_KEYBYTES as usize;
@@ -14,56 +24,61 @@ pub const NONCE_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_NPUBBYTES as 
 pub const MAC_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_ABYTES as usize;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Key {
-    b: [u8; KEY_LENGTH],
-}
+pub struct Key(pub [u8; KEY_LENGTH]);
 
-impl GenericKey for Key {
+impl KeyTrait for Key {
     const LENGTH: usize = KEY_LENGTH;
 
-    fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        Self::try_from_slice(bytes.as_slice())
-    }
-
-    fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
-        let len = bytes.len();
-        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| {
-            anyhow::anyhow!(
-                "Invalid key of length: {}, expected length: {}",
-                len,
-                KEY_LENGTH
-            )
-        })?;
-        Ok(Self { b })
-    }
-
     fn as_bytes(&self) -> Vec<u8> {
-        self.b.to_vec()
+        self.0.to_vec()
     }
 }
 
 impl From<Key> for Vec<u8> {
     fn from(k: Key) -> Vec<u8> {
-        k.b.to_vec()
+        k.0.to_vec()
     }
 }
 
 impl Display for Key {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.b))
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
+impl TryFrom<Vec<u8>> for Key {
+    type Error = Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from(bytes.as_slice())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for Key {
+    type Error = Error;
+
+    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+        let b: [u8; Self::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
+            given: bytes.len(),
+            expected: Self::LENGTH,
+        })?;
+        Ok(Self(b))
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Nonce {
-    b: [u8; NONCE_LENGTH],
-}
+pub struct Nonce(pub [u8; NONCE_LENGTH]);
 
-impl GenericNonce for Nonce {
+impl crate::symmetric_crypto::Nonce for Nonce {
     const LENGTH: usize = NONCE_LENGTH;
 
-    fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        Self::try_from_slice(bytes.as_slice())
+    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
+        let mut bytes = [0_u8; Self::LENGTH];
+        rng.lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .fill_bytes(&mut bytes);
+        Self(bytes)
     }
 
     fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
@@ -75,14 +90,14 @@ impl GenericNonce for Nonce {
                 NONCE_LENGTH
             )
         })?;
-        Ok(Self { b })
+        Ok(Self(b))
     }
 
     fn increment(&self, increment: usize) -> Self {
         let mut copy = self.clone();
         unsafe {
-            let ptr = copy.b.as_mut_ptr();
-            let len = copy.b.len() as u64;
+            let ptr = copy.0.as_mut_ptr();
+            let len = copy.0.len() as u64;
             for _ in 0..increment {
                 sodium_increment(ptr, len);
             }
@@ -91,15 +106,31 @@ impl GenericNonce for Nonce {
     }
 
     fn xor(&self, b2: &[u8]) -> Self {
-        let mut n = self.b;
+        let mut n = self.0;
         for i in 0..min(b2.len(), NONCE_LENGTH) {
             n[i] ^= b2[i];
         }
-        Nonce { b: n }
+        Nonce(n)
     }
 
     fn as_bytes(&self) -> Vec<u8> {
-        self.b.to_vec()
+        self.0.to_vec()
+    }
+}
+
+impl TryFrom<Vec<u8>> for Nonce {
+    type Error = Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from_slice(bytes.as_slice())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for Nonce {
+    type Error = Error;
+
+    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+        Self::try_from_slice(bytes)
     }
 }
 
@@ -188,7 +219,6 @@ impl SymmetricCrypto for XChacha20Crypto {
     }
 
     fn decrypt(
-        &self,
         key: &Self::Key,
         bytes: &[u8],
         nonce: &Nonce,
@@ -226,7 +256,6 @@ impl SymmetricCrypto for XChacha20Crypto {
     }
 
     fn encrypt(
-        &self,
         key: &Self::Key,
         bytes: &[u8],
         nonce: &Nonce,

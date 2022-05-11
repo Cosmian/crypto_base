@@ -1,7 +1,7 @@
 use crate::{
     hybrid_crypto::Dem,
     symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, Nonce, SymmetricCrypto},
-    Error, Key,
+    Error, KeyTrait,
 };
 use rand_core::{CryptoRng, RngCore};
 use std::{convert::TryFrom, sync::Mutex};

@@ -1,7 +1,7 @@
 use crate::{
     asymmetric::{ristretto::X25519Crypto, KeyPair},
     hybrid_crypto::{Error, Kem},
-    kdf, Key,
+    kdf, KeyTrait,
 };
 use rand_core::{CryptoRng, RngCore};
 use std::{convert::TryFrom, sync::Mutex};

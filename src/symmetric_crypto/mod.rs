@@ -1,4 +1,5 @@
 pub mod aes_256_gcm_pure;
+pub mod key;
 
 #[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
 pub mod aes_256_gcm_sodium;
@@ -8,7 +9,7 @@ pub mod ff1;
 #[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
 pub mod xchacha20;
 
-use crate::{Error, Key};
+use crate::{Error, KeyTrait};
 use rand_core::{CryptoRng, RngCore};
 use std::{
     convert::TryFrom,
@@ -34,7 +35,7 @@ pub trait Nonce:
 
 pub trait SymmetricCrypto: Send + Sync {
     const MAC_LENGTH: usize;
-    type Key: Key;
+    type Key: KeyTrait;
     type Nonce: Nonce;
 
     /// A short description of the scheme

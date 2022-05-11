@@ -208,7 +208,7 @@ mod tests {
     use crate::{
         entropy::CsRng,
         symmetric_crypto::aes_256_gcm_pure::{Aes256GcmCrypto, Key},
-        Key as _,
+        KeyTrait as _,
     };
     use std::{ops::DerefMut, sync::Mutex};
 

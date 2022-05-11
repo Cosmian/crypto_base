@@ -1,11 +1,6 @@
 // This implements AES 256 GCM, using lib sodium
 // and requires an AES native interface on the CPU
 
-use std::{cmp::min, convert::TryInto, fmt::Display, vec::Vec};
-
-use tracing::debug;
-
-use super::SymmetricCrypto;
 use crate::{
     sodium_bindings::{
         crypto_aead_aes256gcm_ABYTES, crypto_aead_aes256gcm_KEYBYTES,
@@ -14,8 +9,16 @@ use crate::{
         crypto_aead_aes256gcm_encrypt_detached, crypto_aead_aes256gcm_is_available,
         randombytes_buf, sodium_increment, sodium_init,
     },
-    symmetric_crypto::{Key as _, MIN_DATA_LENGTH},
+    symmetric_crypto::{Key as _, SymmetricCrypto, MIN_DATA_LENGTH},
+    Error, Key as KeyTrait,
 };
+use std::{
+    cmp::min,
+    convert::{TryFrom, TryInto},
+    fmt::Display,
+    vec::Vec,
+};
+use tracing::debug;
 
 pub const KEY_LENGTH: usize = crypto_aead_aes256gcm_KEYBYTES as usize;
 pub const NONCE_LENGTH: usize = crypto_aead_aes256gcm_NPUBBYTES as usize;
@@ -24,24 +27,8 @@ pub const MAC_LENGTH: usize = crypto_aead_aes256gcm_ABYTES as usize;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Key(pub [u8; KEY_LENGTH]);
 
-impl super::Key for Key {
+impl KeyTrait for Key {
     const LENGTH: usize = KEY_LENGTH;
-
-    fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        Self::try_from_slice(bytes.as_slice())
-    }
-
-    fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
-        let len = bytes.len();
-        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| {
-            anyhow::anyhow!(
-                "Invalid key of length: {}, expected length: {}",
-                len,
-                KEY_LENGTH
-            )
-        })?;
-        Ok(Self(b))
-    }
 
     fn as_bytes(&self) -> Vec<u8> {
         self.0.to_vec()
@@ -51,6 +38,26 @@ impl super::Key for Key {
 impl From<Key> for Vec<u8> {
     fn from(k: Key) -> Vec<u8> {
         k.0.to_vec()
+    }
+}
+
+impl TryFrom<Vec<u8>> for Key {
+    type Error = Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from(bytes.as_slice())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for Key {
+    type Error = Error;
+
+    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+        let b: [u8; Self::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
+            given: bytes.len(),
+            expected: Self::LENGTH,
+        })?;
+        Ok(Self(b))
     }
 }
 
@@ -76,10 +83,6 @@ impl Nonce {
 
 impl super::Nonce for Nonce {
     const LENGTH: usize = NONCE_LENGTH;
-
-    fn try_from(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        Self::try_from_slice(bytes.as_slice())
-    }
 
     fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
         let len = bytes.len();
@@ -113,6 +116,22 @@ impl super::Nonce for Nonce {
 impl From<Nonce> for Vec<u8> {
     fn from(n: Nonce) -> Vec<u8> {
         n.0.to_vec()
+    }
+}
+
+impl TryFrom<Vec<u8>> for Nonce {
+    type Error = Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from_slice(bytes.as_slice())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for Nonce {
+    type Error = Error;
+
+    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+        Self::try_from_slice(bytes)
     }
 }
 

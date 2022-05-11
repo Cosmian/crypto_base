@@ -3,7 +3,7 @@
 use crate::{
     asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
     symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, SymmetricCrypto},
-    Error, Key,
+    Error, KeyTrait,
 };
 use std::sync::Mutex;
 

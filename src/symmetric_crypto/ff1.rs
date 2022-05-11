@@ -1,6 +1,6 @@
 use crate::{
     symmetric_crypto::{Nonce as _, SymmetricCrypto},
-    Error, Key as KeyTrait,
+    Error, KeyTrait,
 };
 use aes::Aes256;
 use cosmian_fpe::ff1::{FlexibleNumeralString, FF1};
