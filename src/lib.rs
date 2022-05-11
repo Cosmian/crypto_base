@@ -29,7 +29,9 @@ pub mod sodium_bindings;
 
 pub use crate::error::Error;
 
-pub trait Key: TryFrom<Vec<u8>, Error = Error> + PartialEq + Display + Debug + Sync + Send {
+pub trait Key:
+    TryFrom<Vec<u8>, Error = Error> + PartialEq + Display + Debug + Sync + Send + Clone
+{
     const LENGTH: usize;
     fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self;
     fn as_bytes(&self) -> Vec<u8>;
