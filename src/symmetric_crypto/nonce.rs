@@ -1,4 +1,5 @@
 use crate::Error;
+use num_bigint::BigUint;
 use rand_core::{CryptoRng, RngCore};
 use std::{
     cmp::min,
@@ -46,18 +47,11 @@ impl<const NONCE_LENGTH: usize> NonceTrait for Nonce<NONCE_LENGTH> {
     }
 
     fn increment(&self, increment: usize) -> Self {
-        let mut vec = self.0.to_vec();
-        vec.extend_from_slice(&vec![0_u8; 16 - Self::LENGTH]);
-        let mut v = u128::from_le_bytes(
-            vec.try_into()
-                .expect("This should never happen: nonce is 96 bit < 128 bits"),
-        );
-        v += increment as u128;
-        Nonce(
-            v.to_le_bytes()[0..NONCE_LENGTH]
-                .try_into()
-                .expect("This should never happen: nonce is 96 bit < 128 bits"),
-        )
+        let mut bi = BigUint::from_bytes_le(&self.0);
+        bi += BigUint::from(increment);
+        let mut bi_bytes = bi.to_bytes_le();
+        bi_bytes.resize(NONCE_LENGTH, 0);
+        Nonce(bi_bytes.try_into().expect("This should never happen"))
     }
 
     fn xor(&self, b2: &[u8]) -> Self {

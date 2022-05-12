@@ -17,10 +17,6 @@ pub mod symmetric_crypto;
 
 // this module can be compiled to WASM if need be
 #[cfg(all(not(target_arch = "wasm32"), not(windows)))]
-pub mod cs_prng;
-
-// this module can be compiled to WASM if need be
-#[cfg(all(not(target_arch = "wasm32"), not(windows)))]
 pub mod primes;
 
 #[allow(deref_nullptr)]

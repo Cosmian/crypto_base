@@ -1,7 +1,11 @@
+pub mod distributions;
+
 use rand::{RngCore as _, SeedableRng};
 use rand_core::{CryptoRng, RngCore};
 use rand_hc::Hc128Rng;
 
+/// An implementation of a cryptographically secure
+/// pseudo random generator using HC128
 #[derive(Debug)]
 pub struct CsRng {
     rng: Hc128Rng,
