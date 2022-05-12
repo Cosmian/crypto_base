@@ -5,7 +5,6 @@ use crate::{
     symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, SymmetricCrypto},
     Error, KeyTrait,
 };
-use std::sync::Mutex;
 
 mod block;
 mod dem;
@@ -34,13 +33,13 @@ pub trait Kem: AsymmetricCrypto {
     fn description() -> String;
 
     /// Generate an asymmetric key pair
-    fn key_gen<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self::KeyPair;
+    fn key_gen<R: RngCore + CryptoRng>(rng: &mut R) -> Self::KeyPair;
 
     /// Return `(K, E)` the secret key and its encapsulation.
     ///
     /// - `pk`  : public key
     fn encaps<R: RngCore + CryptoRng>(
-        rng: &Mutex<R>,
+        rng: &mut R,
         pk: &<<Self as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
     ) -> Result<(Vec<u8>, Vec<u8>), Error>;
 
@@ -65,7 +64,7 @@ pub trait Dem: SymmetricCrypto {
     /// - `L`   : optional label to use in the authentication method
     /// - `D`   : data to encapsulate
     fn encaps<R: RngCore + CryptoRng>(
-        rng: &Mutex<R>,
+        rng: &mut R,
         K: &[u8],
         L: &[u8],
         D: &[u8],
@@ -80,12 +79,12 @@ pub trait Dem: SymmetricCrypto {
 }
 
 pub trait HybridCrypto<T: Kem, U: Dem> {
-    fn key_gen<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> T::KeyPair {
+    fn key_gen<R: RngCore + CryptoRng>(rng: &mut R) -> T::KeyPair {
         T::key_gen(rng)
     }
 
     fn encrypt<R: RngCore + CryptoRng>(
-        rng: &Mutex<R>,
+        rng: &mut R,
         pk: &<T::KeyPair as KeyPair>::PublicKey,
         L: &[u8],
         m: &[u8],

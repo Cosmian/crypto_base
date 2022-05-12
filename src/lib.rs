@@ -2,7 +2,6 @@ use rand_core::{CryptoRng, RngCore};
 use std::{
     convert::TryFrom,
     fmt::{Debug, Display},
-    sync::Mutex,
 };
 
 mod error;
@@ -29,7 +28,7 @@ pub trait KeyTrait:
     TryFrom<Vec<u8>, Error = Error> + PartialEq + Display + Debug + Sync + Send + Clone
 {
     const LENGTH: usize;
-    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self;
+    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self;
     fn as_bytes(&self) -> Vec<u8>;
     fn parse(bytes: Vec<u8>) -> Result<Self, Error> {
         Self::try_from(bytes)

@@ -5,8 +5,6 @@ use std::{
     cmp::min,
     convert::{TryFrom, TryInto},
     fmt::{Debug, Display},
-    ops::DerefMut,
-    sync::Mutex,
     vec::Vec,
 };
 
@@ -14,7 +12,7 @@ pub trait NonceTrait:
     TryFrom<Vec<u8>, Error = Error> + Clone + PartialEq + Display + Debug + Sync + Send
 {
     const LENGTH: usize;
-    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self;
+    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self;
     fn try_from_slice(bytes: &[u8]) -> Result<Self, Error>;
     #[must_use]
     fn increment(&self, increment: usize) -> Self;
@@ -29,12 +27,9 @@ pub struct Nonce<const NONCE_LENGTH: usize>(pub [u8; NONCE_LENGTH]);
 impl<const NONCE_LENGTH: usize> NonceTrait for Nonce<NONCE_LENGTH> {
     const LENGTH: usize = NONCE_LENGTH;
 
-    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
+    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         let mut bytes = [0_u8; NONCE_LENGTH];
-        rng.lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .fill_bytes(&mut bytes);
+        rng.fill_bytes(&mut bytes);
         Self(bytes)
     }
 

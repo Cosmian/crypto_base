@@ -350,8 +350,6 @@ impl SymmetricCrypto for Aes256GcmCrypto {
 #[cfg(test)]
 mod tests {
 
-    use std::{ops::DerefMut, sync::Mutex};
-
     use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait, KeyTrait};
 
     use super::*;
@@ -446,19 +444,11 @@ mod tests {
 
     #[test]
     fn test_encryption_decryption_aes256gcm() {
-        let cs_rng = Mutex::new(CsRng::new());
-        let key = Key::new(&cs_rng);
-        let bytes = cs_rng
-            .lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .generate_random_bytes(8192);
-        let ad = cs_rng
-            .lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .generate_random_bytes(56);
-        let iv = Nonce::new(&cs_rng);
+        let mut cs_rng = CsRng::new();
+        let key = Key::new(&mut cs_rng);
+        let bytes = cs_rng.generate_random_bytes(8192);
+        let ad = cs_rng.generate_random_bytes(56);
+        let iv = Nonce::new(&mut cs_rng);
 
         let encrypted_result = Aes256GcmCrypto::encrypt(&key, &bytes, &iv, Some(&ad)).unwrap();
         assert_ne!(encrypted_result, bytes);
@@ -471,19 +461,11 @@ mod tests {
 
     #[test]
     fn test_encryption_decryption_aes256gcm_chunks() {
-        let cs_rng = Mutex::new(CsRng::new());
-        let key = Key::new(&cs_rng);
-        let bytes = cs_rng
-            .lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .generate_random_bytes(10000);
-        let ad = cs_rng
-            .lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .generate_random_bytes(56);
-        let iv = Nonce::new(&cs_rng);
+        let mut cs_rng = CsRng::new();
+        let key = Key::new(&mut cs_rng);
+        let bytes = cs_rng.generate_random_bytes(10000);
+        let ad = cs_rng.generate_random_bytes(56);
+        let iv = Nonce::new(&mut cs_rng);
 
         let mut encrypted_result: Vec<u8> = vec![];
         encrypted_result.extend_from_slice(

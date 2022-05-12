@@ -3,8 +3,6 @@ use rand_core::{CryptoRng, RngCore};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Display,
-    ops::DerefMut,
-    sync::Mutex,
     vec::Vec,
 };
 
@@ -13,12 +11,9 @@ pub struct Key<const KEY_LENGTH: usize>(pub [u8; KEY_LENGTH]);
 
 impl<const KEY_LENGTH: usize> KeyTrait for Key<KEY_LENGTH> {
     /// Generate a new symmetric random `Key`
-    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
+    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         let mut key = Self([0_u8; KEY_LENGTH]);
-        rng.lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .fill_bytes(&mut key.0);
+        rng.fill_bytes(&mut key.0);
         key
     }
 

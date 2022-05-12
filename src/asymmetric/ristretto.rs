@@ -30,12 +30,8 @@ pub struct X25519PrivateKey(Scalar);
 impl KeyTrait for X25519PrivateKey {
     const LENGTH: usize = 32;
 
-    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
-        X25519PrivateKey(Scalar::random(
-            rng.lock()
-                .expect("Could not get a hold on the mutex!")
-                .deref_mut(),
-        ))
+    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        X25519PrivateKey(Scalar::random(rng))
     }
 
     #[must_use]
@@ -93,7 +89,7 @@ pub struct X25519PublicKey(RistrettoPoint);
 impl KeyTrait for X25519PublicKey {
     const LENGTH: usize = 32; //compressed
 
-    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
+    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         Self::from(&X25519PrivateKey::new(rng))
     }
 
@@ -179,7 +175,7 @@ impl KeyPair for X25519KeyPair {
     type PrivateKey = X25519PrivateKey;
     type PublicKey = X25519PublicKey;
 
-    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> X25519KeyPair {
+    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> X25519KeyPair {
         let private_key = X25519PrivateKey::new(rng);
         let public_key = X25519PublicKey::from(&private_key);
         X25519KeyPair {
@@ -335,7 +331,9 @@ impl AsymmetricCrypto for X25519Crypto {
         &self,
         _: Option<&Self::PrivateKeyGenerationParameters>,
     ) -> anyhow::Result<<Self::KeyPair as KeyPair>::PrivateKey> {
-        Ok(X25519PrivateKey::new(&self.rng))
+        Ok(X25519PrivateKey::new(
+            &mut self.rng.lock().expect("a lock failed").deref_mut(),
+        ))
     }
 
     /// Generate a key pair, private key and public key
@@ -343,7 +341,9 @@ impl AsymmetricCrypto for X25519Crypto {
         &self,
         _: Option<&Self::KeyPairGenerationParameters>,
     ) -> anyhow::Result<Self::KeyPair> {
-        Ok(X25519KeyPair::new(&self.rng))
+        Ok(X25519KeyPair::new(
+            &mut self.rng.lock().expect("a lock failed").deref_mut(),
+        ))
     }
 
     /// Generate a symmetric key, and its encryption,to be used in an hybrid
@@ -395,11 +395,13 @@ impl AsymmetricCrypto for X25519Crypto {
         _: Option<&Self::EncryptionParameters>,
         data: &[u8],
     ) -> anyhow::Result<Vec<u8>> {
-        let ephemeral_keypair = X25519KeyPair::new(&self.rng);
+        let ephemeral_keypair =
+            X25519KeyPair::new(&mut self.rng.lock().expect("a lock failed").deref_mut());
         let sym_key_bytes = Self::sym_key_from_public_key(&ephemeral_keypair, public_key)?;
         // use the pure rust aes implementation
         let sym_key = aes_256_gcm_pure::Key::from(sym_key_bytes);
-        let nonce = aes_256_gcm_pure::Nonce::new(&self.rng);
+        let nonce =
+            aes_256_gcm_pure::Nonce::new(&mut self.rng.lock().expect("a lock failed").deref_mut());
         //prepare the result
         let mut result: Vec<u8> = Vec::with_capacity(data.len() + <Self>::ENCRYPTION_OVERHEAD);
         result.extend_from_slice(&ephemeral_keypair.public_key.as_bytes());

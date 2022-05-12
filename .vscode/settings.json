@@ -5,6 +5,7 @@
         "cleartext",
         "Cosmian",
         "ECIES",
+        "encaps",
         "HKDF",
         "keypair",
         "libsodium",

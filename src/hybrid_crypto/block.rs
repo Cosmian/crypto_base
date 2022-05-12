@@ -2,7 +2,6 @@ use crate::symmetric_crypto::nonce::NonceTrait;
 use crate::symmetric_crypto::SymmetricCrypto;
 use rand_core::{CryptoRng, RngCore};
 use std::convert::TryFrom;
-use std::sync::Mutex;
 
 /// A block holds clear text data that needs to be encrypted.
 /// The max fixed length of clear text is set by the const generic
@@ -88,7 +87,7 @@ where
     /// that a block cannot be moved within and between resources
     pub fn to_encrypted_bytes<R: RngCore + CryptoRng>(
         &self,
-        rng: &Mutex<R>,
+        rng: &mut R,
         symmetric_key: &<S as SymmetricCrypto>::Key,
         uid: &[u8],
         block_number: usize,
@@ -211,7 +210,6 @@ mod tests {
         symmetric_crypto::aes_256_gcm_pure::{Aes256GcmCrypto, Key},
         KeyTrait as _,
     };
-    use std::{ops::DerefMut, sync::Mutex};
 
     const MAX_CLEAR_TEXT_LENGTH: usize = 4096;
     type Bl = Block<Aes256GcmCrypto, MAX_CLEAR_TEXT_LENGTH>;
@@ -221,11 +219,11 @@ mod tests {
         let b = Bl::new();
         assert!(b.clear_text().is_empty());
 
-        let cs_rng = Mutex::new(CsRng::new());
-        let symmetric_key = Key::new(&cs_rng);
+        let mut cs_rng = CsRng::new();
+        let symmetric_key = Key::new(&mut cs_rng);
         let uid = [1_u8; 32];
         // let iv = cs_rng.generate_nonce();
-        let encrypted_bytes = b.to_encrypted_bytes(&cs_rng, &symmetric_key, &uid, 1)?;
+        let encrypted_bytes = b.to_encrypted_bytes(&mut cs_rng, &symmetric_key, &uid, 1)?;
         assert_eq!(Bl::ENCRYPTION_OVERHEAD, encrypted_bytes.len());
         let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)?;
         assert!(c.clear_text().is_empty());
@@ -234,22 +232,18 @@ mod tests {
 
     #[test]
     fn test_full_block() -> anyhow::Result<()> {
-        let cs_rng = Mutex::new(CsRng::new());
-        let symmetric_key = Key::new(&cs_rng);
+        let mut cs_rng = CsRng::new();
+        let symmetric_key = Key::new(&mut cs_rng);
         let uid = [1_u8; 32];
 
         let mut b = Bl::new();
         assert!(b.clear_text().is_empty());
-        let data = cs_rng
-            .lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .generate_random_bytes(16384);
+        let data = cs_rng.generate_random_bytes(16384);
         let written = b.write(0, &data)?;
         assert_eq!(MAX_CLEAR_TEXT_LENGTH, written);
 
         // let iv = cs_rng.generate_nonce();
-        let encrypted_bytes = b.to_encrypted_bytes(&cs_rng, &symmetric_key, &uid, 1)?;
+        let encrypted_bytes = b.to_encrypted_bytes(&mut cs_rng, &symmetric_key, &uid, 1)?;
         assert_eq!(
             Bl::ENCRYPTION_OVERHEAD + MAX_CLEAR_TEXT_LENGTH,
             encrypted_bytes.len()
@@ -265,31 +259,23 @@ mod tests {
 
     #[test]
     fn test_partial_block() -> anyhow::Result<()> {
-        let cs_rng = Mutex::new(CsRng::new());
-        let symmetric_key = Key::new(&cs_rng);
+        let mut cs_rng = CsRng::new();
+        let symmetric_key = Key::new(&mut cs_rng);
         let uid = [1_u8; 32];
 
         let mut b = Bl::new();
         assert!(b.clear_text().is_empty());
 
-        let data1 = cs_rng
-            .lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .generate_random_bytes(100);
+        let data1 = cs_rng.generate_random_bytes(100);
         let written = b.write(0, &data1)?;
         assert_eq!(100, written);
 
-        let data2 = cs_rng
-            .lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .generate_random_bytes(100);
+        let data2 = cs_rng.generate_random_bytes(100);
         let written = b.write(200, &data2)?;
         assert_eq!(100, written);
 
         // let iv = cs_rng.generate_nonce();
-        let encrypted_bytes = b.to_encrypted_bytes(&cs_rng, &symmetric_key, &uid, 1)?;
+        let encrypted_bytes = b.to_encrypted_bytes(&mut cs_rng, &symmetric_key, &uid, 1)?;
         assert_eq!(300 + Bl::ENCRYPTION_OVERHEAD, encrypted_bytes.len());
         let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)?;
         let mut data: Vec<u8> = vec![];

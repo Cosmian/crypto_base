@@ -5,7 +5,7 @@ use crate::{
     symmetric_crypto::SymmetricCrypto,
 };
 use rand_core::{CryptoRng, RngCore};
-use std::{convert::TryFrom, sync::Mutex};
+use std::convert::TryFrom;
 
 /// Metadata encrypted as part of the header
 ///
@@ -162,7 +162,7 @@ where
     ///  - [S+4+N, S+8+N[: big-endian u32: the size M of the symmetrically
     ///    encrypted Metadata
     ///  - [S+8+N,S+8+N+M[: the symmetrically encrypted metadata
-    pub fn as_bytes<R: CryptoRng + RngCore>(&self, rng: &Mutex<R>) -> anyhow::Result<Vec<u8>> {
+    pub fn as_bytes<R: CryptoRng + RngCore>(&self, rng: &mut R) -> anyhow::Result<Vec<u8>> {
         // ..size
         let mut bytes = u32_len(&self.encrypted_symmetric_key)?.to_vec();
         // ...bytes
@@ -216,7 +216,6 @@ mod tests {
         hybrid_crypto::{header::Metadata, Header},
         symmetric_crypto::aes_256_gcm_pure::Aes256GcmCrypto,
     };
-    use std::sync::Mutex;
 
     #[test]
     pub fn test_meta_data() -> anyhow::Result<()> {
@@ -246,7 +245,7 @@ mod tests {
 
     #[test]
     pub fn test_header() -> anyhow::Result<()> {
-        let rng = Mutex::new(CsRng::new());
+        let mut rng = CsRng::new();
         let asymmetric_scheme = X25519Crypto::default();
         let key_pair = asymmetric_scheme.generate_key_pair(None)?;
 
@@ -262,7 +261,7 @@ mod tests {
             metadata_full.clone(),
         )?;
 
-        let bytes = header.as_bytes(&rng)?;
+        let bytes = header.as_bytes(&mut rng)?;
         let header_ =
             Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, key_pair.private_key())?;
 
@@ -280,7 +279,7 @@ mod tests {
             metadata_sec.clone(),
         )?;
 
-        let bytes = header.as_bytes(&rng)?;
+        let bytes = header.as_bytes(&mut rng)?;
         let header_ =
             Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, key_pair.private_key())?;
 
@@ -298,7 +297,7 @@ mod tests {
             metadata_empty.clone(),
         )?;
 
-        let bytes = header.as_bytes(&rng)?;
+        let bytes = header.as_bytes(&mut rng)?;
         let header_ =
             Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, key_pair.private_key())?;
 

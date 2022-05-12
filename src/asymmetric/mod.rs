@@ -1,6 +1,6 @@
 use crate::{symmetric_crypto::SymmetricCrypto, Error, KeyTrait};
 use rand_core::{CryptoRng, RngCore};
-use std::{convert::TryFrom, sync::Mutex, vec::Vec};
+use std::{convert::TryFrom, vec::Vec};
 
 pub mod ristretto;
 
@@ -14,7 +14,7 @@ pub trait KeyPair: TryFrom<Vec<u8>> + Into<Vec<u8>> {
     /// Generate a new private key / public key couple.
     ///
     /// - `rng` : secure random number generator
-    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self;
+    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self;
 
     /// Return a reference to the public key.
     fn public_key(&self) -> &Self::PublicKey;

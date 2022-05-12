@@ -4,7 +4,7 @@ use crate::{
     kdf, KeyTrait,
 };
 use rand_core::{CryptoRng, RngCore};
-use std::{convert::TryFrom, sync::Mutex};
+use std::convert::TryFrom;
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
@@ -17,12 +17,12 @@ impl Kem for X25519Crypto {
         todo!()
     }
 
-    fn key_gen<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self::KeyPair {
+    fn key_gen<R: RngCore + CryptoRng>(rng: &mut R) -> Self::KeyPair {
         Self::KeyPair::new(rng)
     }
 
     fn encaps<R: RngCore + CryptoRng>(
-        rng: &Mutex<R>,
+        rng: &mut R,
         pk: &<Self::KeyPair as KeyPair>::PublicKey,
     ) -> Result<(Vec<u8>, Vec<u8>), Error> {
         let ephemeral_keypair = Self::key_gen(rng);
@@ -70,9 +70,9 @@ mod tests {
 
     #[test]
     fn test_kem() -> Result<()> {
-        let rng = Mutex::new(CsRng::new());
-        let key_pair = X25519Crypto::key_gen(&rng);
-        let (K, E) = X25519Crypto::encaps(&rng, key_pair.public_key())
+        let mut rng = CsRng::new();
+        let key_pair = X25519Crypto::key_gen(&mut rng);
+        let (K, E) = X25519Crypto::encaps(&mut rng, key_pair.public_key())
             .map_err(|err| anyhow::eyre!("{:?}", err))?;
         let res = X25519Crypto::decaps(key_pair.private_key(), &E)
             .map_err(|err| anyhow::eyre!("{:?}", err))?;

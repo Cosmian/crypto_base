@@ -116,7 +116,6 @@ impl SymmetricCrypto for XChacha20Crypto {
 #[cfg(test)]
 mod tests {
     use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait, KeyTrait};
-    use std::{ops::DerefMut, sync::Mutex};
 
     use super::{
         Key, Nonce, SymmetricCrypto, XChacha20Crypto, KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH,
@@ -124,39 +123,31 @@ mod tests {
 
     #[test]
     fn test_key() {
-        let cs_rng = Mutex::new(CsRng::new());
-        let key_1 = Key::new(&cs_rng);
+        let mut cs_rng = CsRng::new();
+        let key_1 = Key::new(&mut cs_rng);
         assert_eq!(KEY_LENGTH, key_1.0.len());
-        let key_2 = Key::new(&cs_rng);
+        let key_2 = Key::new(&mut cs_rng);
         assert_eq!(KEY_LENGTH, key_2.0.len());
         assert_ne!(key_1, key_2);
     }
 
     #[test]
     fn test_nonce() {
-        let cs_rng = Mutex::new(CsRng::new());
-        let nonce_1 = Nonce::new(&cs_rng);
+        let mut cs_rng = CsRng::new();
+        let nonce_1 = Nonce::new(&mut cs_rng);
         assert_eq!(NONCE_LENGTH, nonce_1.0.len());
-        let nonce_2 = Nonce::new(&cs_rng);
+        let nonce_2 = Nonce::new(&mut cs_rng);
         assert_eq!(NONCE_LENGTH, nonce_2.0.len());
         assert_ne!(nonce_1, nonce_2);
     }
 
     #[test]
     fn test_encryption_decryption_xchacha20() {
-        let cs_rng = Mutex::new(CsRng::new());
-        let key = Key::new(&cs_rng);
-        let bytes = cs_rng
-            .lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .generate_random_bytes(8192);
-        let ad = cs_rng
-            .lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .generate_random_bytes(56);
-        let iv = Nonce::new(&cs_rng);
+        let mut cs_rng = CsRng::new();
+        let key = Key::new(&mut cs_rng);
+        let bytes = cs_rng.generate_random_bytes(8192);
+        let ad = cs_rng.generate_random_bytes(56);
+        let iv = Nonce::new(&mut cs_rng);
         let encrypted_result = XChacha20Crypto::encrypt(&key, &bytes, &iv, Some(&ad)).unwrap();
         assert_ne!(encrypted_result, bytes);
         assert_eq!(bytes.len() + MAC_LENGTH, encrypted_result.len());
@@ -168,19 +159,11 @@ mod tests {
 
     #[test]
     fn test_encryption_decryption_xchacha20_chunks() {
-        let cs_rng = Mutex::new(CsRng::new());
-        let key = Key::new(&cs_rng);
-        let bytes = cs_rng
-            .lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .generate_random_bytes(10000);
-        let ad = cs_rng
-            .lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .generate_random_bytes(92);
-        let iv = Nonce::new(&cs_rng);
+        let mut cs_rng = CsRng::new();
+        let key = Key::new(&mut cs_rng);
+        let bytes = cs_rng.generate_random_bytes(10000);
+        let ad = cs_rng.generate_random_bytes(92);
+        let iv = Nonce::new(&mut cs_rng);
 
         let mut encrypted_result: Vec<u8> = vec![];
         encrypted_result.extend_from_slice(
