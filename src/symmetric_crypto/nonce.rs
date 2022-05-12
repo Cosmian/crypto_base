@@ -54,7 +54,7 @@ impl<const NONCE_LENGTH: usize> NonceTrait for Nonce<NONCE_LENGTH> {
         );
         v += increment as u128;
         Nonce(
-            v.to_be_bytes()[0..NONCE_LENGTH]
+            v.to_le_bytes()[0..NONCE_LENGTH]
                 .try_into()
                 .expect("This should never happen: nonce is 96 bit < 128 bits"),
         )
@@ -119,9 +119,7 @@ mod tests {
         let mut nonce: Nonce<NONCE_LENGTH> = Nonce::from([0_u8; NONCE_LENGTH]);
         let inc = 1_usize << 10;
         nonce = nonce.increment(inc);
-        assert_eq!(
-            "000400000000000000000000000000000000000000000000",
-            hex::encode(nonce.0)
-        );
+        println!("{}", hex::encode(nonce.0));
+        assert_eq!("000400000000000000000000", hex::encode(nonce.0));
     }
 }
