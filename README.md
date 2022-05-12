@@ -6,16 +6,19 @@
 [Latest Version]: https://img.shields.io/crates/v/cosmian_crypto_base.svg
 [crates.io]: https://crates.io/crates/cosmian_crypto_base
 
-This crates implements crypto primitives which are useful for other Cosmian crypto resources
+This crate implements crypto primitives which are used in many other Cosmian crypto resources
 
+- symmetric crypto: AES 256 GCM (pure and libsodium version), xChaCha20 (libsodium), FPE FF1 (pure)
+- elliptic curves: Ristretto Curve 25519
+- KDF: HKDF 256
 - primes: routines to extract prime numbers up to 2^400
-- cs_prng: A cryptographically secure pseudo random generator that generates Big Int(s)
+- entropy: Cryptographically secure pseudo random generators with normal and Gaussian distributions
 - [brc_cprf](#constrained-prf): BRC, a constrained PRF (see below)
 - [aes_hash_mmo](#aes-as-a-hash-function): using the native implementation of AES 256 as a hash function.
-- timed_cache: a thread safe memory cache where items expire after a certain time
-- timed_caches: a WIP. Do not use for now
+- timed_cache: a thread-safe memory cache where items expire after a certain time
 
-It also exposes 2 traits, `SymmetricCrypto` and `AsymmetricCrypto` (aka Public Key Crypto) to which most schemes used at Cosmian are mapped. A fw of these schemes are available under the corresponding directories.
+
+It also exposes a few traits, `SymmetricCrypto` and `AsymmetricCrypto` (aka Public Key Crypto), `KEM`, `DEM`,... which are used as building blocks for other constructions.
 
 
 ## Building
@@ -82,8 +85,7 @@ we use AES in counter mode to encrypt two blocks of 16 bytes
 ### Benchmarks
 
 The Sha256 implementation is that of libsodium.
-The AES MMO implementation is particularly performing for data length
-which are multiple of 32 bytes.
+The AES MMO implementation is particularly performing for data lengths that are multiples of 32 bytes.
 
 Intel(R) Core(TM) i9-9980HK CPU @ 2.40GHz - 4800 bogomips . Single Threaded.
 
