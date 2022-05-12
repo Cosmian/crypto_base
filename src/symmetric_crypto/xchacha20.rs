@@ -1,159 +1,25 @@
-use std::{
-    cmp::min,
-    convert::{TryFrom, TryInto},
-    fmt::Display,
-    sync::Mutex,
-    vec::Vec,
-};
-
-use rand::{CryptoRng, RngCore};
-use tracing::debug;
-
 use crate::{
     sodium_bindings::{
         crypto_aead_xchacha20poly1305_ietf_ABYTES, crypto_aead_xchacha20poly1305_ietf_KEYBYTES,
         crypto_aead_xchacha20poly1305_ietf_NPUBBYTES, crypto_aead_xchacha20poly1305_ietf_decrypt,
-        crypto_aead_xchacha20poly1305_ietf_encrypt, randombytes_buf, sodium_increment, sodium_init,
+        crypto_aead_xchacha20poly1305_ietf_encrypt, sodium_init,
     },
-    symmetric_crypto::{Key as _, Nonce as GenericNonce, SymmetricCrypto, MIN_DATA_LENGTH},
-    Error, Key as KeyTrait,
+    symmetric_crypto::{SymmetricCrypto, MIN_DATA_LENGTH},
 };
+use std::sync::Once;
+use std::vec::Vec;
+
+static START: Once = Once::new();
 
 pub const KEY_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_KEYBYTES as usize;
 pub const NONCE_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_NPUBBYTES as usize;
 pub const MAC_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_ABYTES as usize;
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Key(pub [u8; KEY_LENGTH]);
-
-impl KeyTrait for Key {
-    const LENGTH: usize = KEY_LENGTH;
-
-    fn as_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-}
-
-impl From<Key> for Vec<u8> {
-    fn from(k: Key) -> Vec<u8> {
-        k.0.to_vec()
-    }
-}
-
-impl Display for Key {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
-
-impl TryFrom<Vec<u8>> for Key {
-    type Error = Error;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from(bytes.as_slice())
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for Key {
-    type Error = Error;
-
-    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        let b: [u8; Self::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
-            given: bytes.len(),
-            expected: Self::LENGTH,
-        })?;
-        Ok(Self(b))
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Nonce(pub [u8; NONCE_LENGTH]);
-
-impl crate::symmetric_crypto::Nonce for Nonce {
-    const LENGTH: usize = NONCE_LENGTH;
-
-    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
-        let mut bytes = [0_u8; Self::LENGTH];
-        rng.lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .fill_bytes(&mut bytes);
-        Self(bytes)
-    }
-
-    fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
-        let len = bytes.len();
-        let b: [u8; NONCE_LENGTH] = bytes.try_into().map_err(|_| {
-            anyhow::anyhow!(
-                "Invalid nonce of length: {}, expected length: {}",
-                len,
-                NONCE_LENGTH
-            )
-        })?;
-        Ok(Self(b))
-    }
-
-    fn increment(&self, increment: usize) -> Self {
-        let mut copy = self.clone();
-        unsafe {
-            let ptr = copy.0.as_mut_ptr();
-            let len = copy.0.len() as u64;
-            for _ in 0..increment {
-                sodium_increment(ptr, len);
-            }
-        }
-        copy
-    }
-
-    fn xor(&self, b2: &[u8]) -> Self {
-        let mut n = self.0;
-        for i in 0..min(b2.len(), NONCE_LENGTH) {
-            n[i] ^= b2[i];
-        }
-        Nonce(n)
-    }
-
-    fn as_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-}
-
-impl TryFrom<Vec<u8>> for Nonce {
-    type Error = Error;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from_slice(bytes.as_slice())
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for Nonce {
-    type Error = Error;
-
-    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        Self::try_from_slice(bytes)
-    }
-}
-
-impl From<Nonce> for Vec<u8> {
-    fn from(n: Nonce) -> Vec<u8> {
-        n.b.to_vec()
-    }
-}
-
-impl Display for Nonce {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.b))
-    }
-}
+pub type Key = crate::symmetric_crypto::key::Key<KEY_LENGTH>;
+pub type Nonce = crate::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
 
 #[derive(Debug, PartialEq)]
 pub struct XChacha20Crypto {}
-
-impl Default for XChacha20Crypto {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl SymmetricCrypto for XChacha20Crypto {
     type Key = Key;
@@ -161,61 +27,13 @@ impl SymmetricCrypto for XChacha20Crypto {
 
     const MAC_LENGTH: usize = MAC_LENGTH;
 
-    #[must_use]
-    fn new() -> XChacha20Crypto {
-        unsafe {
-            sodium_init();
-        };
-        debug!("Instantiated XChaCha20");
-        XChacha20Crypto {}
-    }
-
     fn description() -> String {
         format!(
-            "XChaCha20 Poly 1305 (key bits: {}, nonce bits: {}, mac bits: {})",
+            "XChaCha20 Poly1305 libsodium (key bits: {}, nonce bits: {}, mac bits: {})",
             KEY_LENGTH * 8,
             NONCE_LENGTH * 8,
             MAC_LENGTH * 8
         )
-    }
-
-    fn generate_random_bytes(&self, len: usize) -> Vec<u8> {
-        let mut bytes: Vec<u8> = vec![0; len];
-        unsafe {
-            randombytes_buf(
-                bytes.as_mut_ptr().cast::<std::ffi::c_void>(),
-                bytes.len() as u64,
-            );
-        }
-        bytes
-    }
-
-    fn generate_key_from_rnd(rnd_bytes: &[u8]) -> anyhow::Result<Self::Key> {
-        Ok(Key {
-            b: rnd_bytes.try_into()?,
-        })
-    }
-
-    fn generate_key(&self) -> Self::Key {
-        let mut bytes = [0_u8; KEY_LENGTH];
-        unsafe {
-            randombytes_buf(
-                bytes.as_mut_ptr().cast::<std::ffi::c_void>(),
-                bytes.len() as u64,
-            );
-        }
-        Key { b: bytes }
-    }
-
-    fn generate_nonce(&self) -> Self::Nonce {
-        let mut bytes = [0_u8; NONCE_LENGTH];
-        unsafe {
-            randombytes_buf(
-                bytes.as_mut_ptr().cast::<std::ffi::c_void>(),
-                bytes.len() as u64,
-            );
-        }
-        Nonce { b: bytes }
     }
 
     fn decrypt(
@@ -224,6 +42,10 @@ impl SymmetricCrypto for XChacha20Crypto {
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
     ) -> anyhow::Result<Vec<u8>> {
+        START.call_once(|| unsafe {
+            sodium_init();
+        });
+
         if bytes.is_empty() {
             return Ok(vec![]);
         }
@@ -245,8 +67,8 @@ impl SymmetricCrypto for XChacha20Crypto {
                 bytes.len() as u64,
                 ad,
                 ad_len,
-                nonce.b.as_ref().as_ptr(),
-                key.b.as_ptr(),
+                nonce.0.as_ref().as_ptr(),
+                key.0.as_ptr(),
             )
         } != 0
         {
@@ -261,6 +83,10 @@ impl SymmetricCrypto for XChacha20Crypto {
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
     ) -> anyhow::Result<Vec<u8>> {
+        START.call_once(|| unsafe {
+            sodium_init();
+        });
+
         let (ad, ad_len) = match additional_data {
             Some(b) => (b.as_ptr(), b.len() as u64),
             None => (std::ptr::null(), 0_u64),
@@ -276,8 +102,8 @@ impl SymmetricCrypto for XChacha20Crypto {
                 ad,
                 ad_len,
                 std::ptr::null(),
-                nonce.b.as_ref().as_ptr(),
-                key.b.as_ptr(),
+                nonce.0.as_ref().as_ptr(),
+                key.0.as_ptr(),
             ) != 0
             {
                 anyhow::bail!("encryption failed");
@@ -289,117 +115,114 @@ impl SymmetricCrypto for XChacha20Crypto {
 
 #[cfg(test)]
 mod tests {
-    use super::{Nonce, SymmetricCrypto, XChacha20Crypto, KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH};
-    use crate::symmetric_crypto::Nonce as _;
+    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait, KeyTrait};
+    use std::{ops::DerefMut, sync::Mutex};
+
+    use super::{
+        Key, Nonce, SymmetricCrypto, XChacha20Crypto, KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH,
+    };
 
     #[test]
     fn test_key() {
-        let x_cha_cha = XChacha20Crypto::new();
-        let key_1 = x_cha_cha.generate_key();
-        assert_eq!(KEY_LENGTH, key_1.b.len());
-        let key_2 = x_cha_cha.generate_key();
-        assert_eq!(KEY_LENGTH, key_1.b.len());
-        assert_ne!(key_1.b, key_2.b);
+        let cs_rng = Mutex::new(CsRng::new());
+        let key_1 = Key::new(&cs_rng);
+        assert_eq!(KEY_LENGTH, key_1.0.len());
+        let key_2 = Key::new(&cs_rng);
+        assert_eq!(KEY_LENGTH, key_2.0.len());
+        assert_ne!(key_1, key_2);
     }
 
     #[test]
-    fn test_random_bytes() {
-        let size = 1024_usize;
-        let x_cha_cha = XChacha20Crypto::new();
-        let random_bytes_1 = x_cha_cha.generate_random_bytes(size);
-        assert_eq!(size, random_bytes_1.len());
-        let random_bytes_2 = x_cha_cha.generate_random_bytes(size);
-        assert_eq!(size, random_bytes_1.len());
-        assert_ne!(random_bytes_1, random_bytes_2);
-    }
-
-    #[test]
-    fn test_increment_nonce() {
-        let mut nonce: Nonce = Nonce {
-            b: [0_u8; NONCE_LENGTH],
-        };
-        let inc = 1_usize << 10;
-        nonce = nonce.increment(inc);
-        assert_eq!(
-            "000400000000000000000000000000000000000000000000",
-            hex::encode(nonce.b)
-        );
+    fn test_nonce() {
+        let cs_rng = Mutex::new(CsRng::new());
+        let nonce_1 = Nonce::new(&cs_rng);
+        assert_eq!(NONCE_LENGTH, nonce_1.0.len());
+        let nonce_2 = Nonce::new(&cs_rng);
+        assert_eq!(NONCE_LENGTH, nonce_2.0.len());
+        assert_ne!(nonce_1, nonce_2);
     }
 
     #[test]
     fn test_encryption_decryption_xchacha20() {
-        let crypto = XChacha20Crypto::new();
-        let key = crypto.generate_key();
-        let bytes = crypto.generate_random_bytes(8192);
-        let ad = crypto.generate_random_bytes(56);
-        let iv = crypto.generate_nonce();
-        let encrypted_result = crypto.encrypt(&key, &bytes, &iv, Some(&ad)).unwrap();
+        let cs_rng = Mutex::new(CsRng::new());
+        let key = Key::new(&cs_rng);
+        let bytes = cs_rng
+            .lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .generate_random_bytes(8192);
+        let ad = cs_rng
+            .lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .generate_random_bytes(56);
+        let iv = Nonce::new(&cs_rng);
+        let encrypted_result = XChacha20Crypto::encrypt(&key, &bytes, &iv, Some(&ad)).unwrap();
         assert_ne!(encrypted_result, bytes);
         assert_eq!(bytes.len() + MAC_LENGTH, encrypted_result.len());
         // decrypt
-        let recovered = crypto
-            .decrypt(&key, encrypted_result.as_slice(), &iv, Some(&ad))
-            .unwrap();
+        let recovered =
+            XChacha20Crypto::decrypt(&key, encrypted_result.as_slice(), &iv, Some(&ad)).unwrap();
         assert_eq!(bytes, recovered);
     }
 
     #[test]
     fn test_encryption_decryption_xchacha20_chunks() {
-        let crypto = XChacha20Crypto::new();
-        let key = crypto.generate_key();
-        let bytes = crypto.generate_random_bytes(10000);
-        let ad = crypto.generate_random_bytes(92);
-        let iv = crypto.generate_nonce();
+        let cs_rng = Mutex::new(CsRng::new());
+        let key = Key::new(&cs_rng);
+        let bytes = cs_rng
+            .lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .generate_random_bytes(10000);
+        let ad = cs_rng
+            .lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .generate_random_bytes(92);
+        let iv = Nonce::new(&cs_rng);
+
         let mut encrypted_result: Vec<u8> = vec![];
         encrypted_result.extend_from_slice(
-            &crypto
-                .encrypt(&key, &bytes[..4096], &iv, Some(&ad))
-                .unwrap(),
+            &XChacha20Crypto::encrypt(&key, &bytes[..4096], &iv, Some(&ad)).unwrap(),
         );
         let mut next_nonce = iv.increment(1);
         encrypted_result.extend_from_slice(
-            &crypto
-                .encrypt(&key, &bytes[4096..8192], &next_nonce, Some(&ad))
-                .unwrap(),
+            &XChacha20Crypto::encrypt(&key, &bytes[4096..8192], &next_nonce, Some(&ad)).unwrap(),
         );
         next_nonce = next_nonce.increment(1);
         encrypted_result.extend_from_slice(
-            &crypto
-                .encrypt(&key, &bytes[8192..], &next_nonce, Some(&ad))
-                .unwrap(),
+            &XChacha20Crypto::encrypt(&key, &bytes[8192..], &next_nonce, Some(&ad)).unwrap(),
         );
         assert_ne!(encrypted_result, bytes);
         assert_eq!(bytes.len() + 3 * MAC_LENGTH, encrypted_result.len());
         // decrypt
         let mut recovered: Vec<u8> = vec![];
         recovered.extend_from_slice(
-            &crypto
-                .decrypt(&key, &encrypted_result[..4096 + MAC_LENGTH], &iv, Some(&ad))
+            &XChacha20Crypto::decrypt(&key, &encrypted_result[..4096 + MAC_LENGTH], &iv, Some(&ad))
                 .unwrap(),
         );
         let mut next_nonce = iv.increment(1);
         assert_eq!(bytes[..4096], recovered[..4096]);
         recovered.extend_from_slice(
-            &crypto
-                .decrypt(
-                    &key,
-                    &encrypted_result[4096 + MAC_LENGTH..8192 + 2 * MAC_LENGTH],
-                    &next_nonce,
-                    Some(&ad),
-                )
-                .unwrap(),
+            &XChacha20Crypto::decrypt(
+                &key,
+                &encrypted_result[4096 + MAC_LENGTH..8192 + 2 * MAC_LENGTH],
+                &next_nonce,
+                Some(&ad),
+            )
+            .unwrap(),
         );
         assert_eq!(bytes[4096..8192], recovered[4096..8192]);
         next_nonce = next_nonce.increment(1);
         recovered.extend_from_slice(
-            &crypto
-                .decrypt(
-                    &key,
-                    &encrypted_result[8192 + 2 * MAC_LENGTH..],
-                    &next_nonce,
-                    Some(&ad),
-                )
-                .unwrap(),
+            &XChacha20Crypto::decrypt(
+                &key,
+                &encrypted_result[8192 + 2 * MAC_LENGTH..],
+                &next_nonce,
+                Some(&ad),
+            )
+            .unwrap(),
         );
         assert_eq!(bytes, recovered);
     }

@@ -9,143 +9,15 @@ use crate::{
         crypto_aead_aes256gcm_encrypt_detached, crypto_aead_aes256gcm_is_available,
         randombytes_buf, sodium_increment, sodium_init,
     },
-    symmetric_crypto::{Key as _, SymmetricCrypto, MIN_DATA_LENGTH},
-    Error, Key as KeyTrait,
+    symmetric_crypto::{SymmetricCrypto, MIN_DATA_LENGTH},
 };
-use std::{
-    cmp::min,
-    convert::{TryFrom, TryInto},
-    fmt::Display,
-    vec::Vec,
-};
-use tracing::debug;
 
 pub const KEY_LENGTH: usize = crypto_aead_aes256gcm_KEYBYTES as usize;
 pub const NONCE_LENGTH: usize = crypto_aead_aes256gcm_NPUBBYTES as usize;
 pub const MAC_LENGTH: usize = crypto_aead_aes256gcm_ABYTES as usize;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Key(pub [u8; KEY_LENGTH]);
-
-impl KeyTrait for Key {
-    const LENGTH: usize = KEY_LENGTH;
-
-    fn as_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-}
-
-impl From<Key> for Vec<u8> {
-    fn from(k: Key) -> Vec<u8> {
-        k.0.to_vec()
-    }
-}
-
-impl TryFrom<Vec<u8>> for Key {
-    type Error = Error;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from(bytes.as_slice())
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for Key {
-    type Error = Error;
-
-    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        let b: [u8; Self::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
-            given: bytes.len(),
-            expected: Self::LENGTH,
-        })?;
-        Ok(Self(b))
-    }
-}
-
-impl Display for Key {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Nonce(pub [u8; NONCE_LENGTH]);
-
-impl Nonce {
-    #[must_use]
-    pub fn xor(&self, b2: &[u8]) -> Nonce {
-        let mut n = self.0;
-        for i in 0..min(b2.len(), NONCE_LENGTH) {
-            n[i] ^= b2[i];
-        }
-        Nonce(n)
-    }
-}
-
-impl super::Nonce for Nonce {
-    const LENGTH: usize = NONCE_LENGTH;
-
-    fn try_from_slice(bytes: &[u8]) -> anyhow::Result<Self> {
-        let len = bytes.len();
-        let b: [u8; NONCE_LENGTH] = bytes.try_into().map_err(|_| {
-            anyhow::anyhow!(
-                "Invalid nonce of length: {}, expected length: {}",
-                len,
-                NONCE_LENGTH
-            )
-        })?;
-        Ok(Self(b))
-    }
-
-    fn increment(&self, increment: usize) -> Self {
-        increment_nonce(self, increment)
-    }
-
-    fn xor(&self, b2: &[u8]) -> Self {
-        let mut n = self.0;
-        for i in 0..min(b2.len(), NONCE_LENGTH) {
-            n[i] ^= b2[i];
-        }
-        Nonce(n)
-    }
-
-    fn as_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-}
-
-impl From<Nonce> for Vec<u8> {
-    fn from(n: Nonce) -> Vec<u8> {
-        n.0.to_vec()
-    }
-}
-
-impl TryFrom<Vec<u8>> for Nonce {
-    type Error = Error;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from_slice(bytes.as_slice())
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for Nonce {
-    type Error = Error;
-
-    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        Self::try_from_slice(bytes)
-    }
-}
-
-impl From<Key> for [u8; KEY_LENGTH] {
-    fn from(k: Key) -> [u8; KEY_LENGTH] {
-        k.0
-    }
-}
-
-impl Display for Nonce {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
+pub type Key = crate::symmetric_crypto::key::Key<KEY_LENGTH>;
+pub type Nonce = crate::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
 
 pub fn init() -> anyhow::Result<()> {
     unsafe {
@@ -168,7 +40,7 @@ pub fn generate_key() -> Key {
             bytes.len() as u64,
         );
     }
-    Key(bytes)
+    Key::from(bytes)
 }
 
 /// Generate a 96 bits nonce appropriate for use with AES
@@ -181,7 +53,7 @@ pub fn generate_nonce() -> Nonce {
             bytes.len() as u64,
         );
     }
-    Nonce(bytes)
+    Nonce::from(bytes)
 }
 
 /// Increment a nonce with the given value
@@ -391,29 +263,11 @@ pub fn decrypt_detached(
 #[derive(Debug, PartialEq)]
 pub struct Aes256GcmCrypto;
 
-impl Default for Aes256GcmCrypto {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl SymmetricCrypto for Aes256GcmCrypto {
     type Key = Key;
     type Nonce = Nonce;
 
     const MAC_LENGTH: usize = MAC_LENGTH;
-
-    #[must_use]
-    fn new() -> Self {
-        unsafe {
-            sodium_init();
-            if crypto_aead_aes256gcm_is_available() != 1 {
-                panic!("This CPU does not support the AES256-GCM implementation");
-            }
-        };
-        debug!("Instantiated AES 256 GCM");
-        Aes256GcmCrypto {}
-    }
 
     fn description() -> String {
         format!(
@@ -424,45 +278,7 @@ impl SymmetricCrypto for Aes256GcmCrypto {
         )
     }
 
-    fn generate_random_bytes(&self, len: usize) -> Vec<u8> {
-        let mut bytes: Vec<u8> = vec![0; len];
-        unsafe {
-            randombytes_buf(
-                bytes.as_mut_ptr().cast::<std::ffi::c_void>(),
-                bytes.len() as u64,
-            );
-        }
-        bytes
-    }
-
-    fn generate_key_from_rnd(rng_bytes: &[u8]) -> anyhow::Result<Self::Key> {
-        Self::Key::try_from_slice(rng_bytes)
-    }
-
-    fn generate_key(&self) -> Self::Key {
-        let mut bytes = [0_u8; KEY_LENGTH];
-        unsafe {
-            randombytes_buf(
-                bytes.as_mut_ptr().cast::<std::ffi::c_void>(),
-                bytes.len() as u64,
-            );
-        }
-        Key(bytes)
-    }
-
-    fn generate_nonce(&self) -> Self::Nonce {
-        let mut bytes = [0_u8; NONCE_LENGTH];
-        unsafe {
-            randombytes_buf(
-                bytes.as_mut_ptr().cast::<std::ffi::c_void>(),
-                bytes.len() as u64,
-            );
-        }
-        Nonce(bytes)
-    }
-
     fn encrypt(
-        &self,
         key: &Self::Key,
         bytes: &[u8],
         nonce: &Nonce,
@@ -494,7 +310,6 @@ impl SymmetricCrypto for Aes256GcmCrypto {
     }
 
     fn decrypt(
-        &self,
         key: &Self::Key,
         bytes: &[u8],
         nonce: &Nonce,
@@ -535,8 +350,11 @@ impl SymmetricCrypto for Aes256GcmCrypto {
 #[cfg(test)]
 mod tests {
 
+    use std::{ops::DerefMut, sync::Mutex};
+
+    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait, KeyTrait};
+
     use super::*;
-    use crate::symmetric_crypto::Nonce as _;
 
     #[test]
     fn test_key() {
@@ -568,7 +386,7 @@ mod tests {
 
     #[test]
     fn test_increment_nonce() {
-        let mut nonce: Nonce = Nonce([0_u8; NONCE_LENGTH]);
+        let mut nonce: Nonce = Nonce::from([0_u8; NONCE_LENGTH]);
         let inc = 1_usize << 10;
         nonce = increment_nonce(&nonce, inc);
         assert_eq!("000400000000000000000000", format!("{}", nonce));
@@ -628,80 +446,86 @@ mod tests {
 
     #[test]
     fn test_encryption_decryption_aes256gcm() {
-        let aes = Aes256GcmCrypto::new();
-        let key = aes.generate_key();
-        let bytes = aes.generate_random_bytes(8192);
-        let ad = aes.generate_random_bytes(56);
+        let cs_rng = Mutex::new(CsRng::new());
+        let key = Key::new(&cs_rng);
+        let bytes = cs_rng
+            .lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .generate_random_bytes(8192);
+        let ad = cs_rng
+            .lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .generate_random_bytes(56);
+        let iv = Nonce::new(&cs_rng);
 
-        let iv = aes.generate_nonce();
-        let encrypted_result = aes.encrypt(&key, &bytes, &iv, Some(&ad)).unwrap();
+        let encrypted_result = Aes256GcmCrypto::encrypt(&key, &bytes, &iv, Some(&ad)).unwrap();
         assert_ne!(encrypted_result, bytes);
         assert_eq!(bytes.len() + MAC_LENGTH, encrypted_result.len());
         // decrypt
-        let recovered = aes
-            .decrypt(&key, encrypted_result.as_slice(), &iv, Some(&ad))
-            .unwrap();
+        let recovered =
+            Aes256GcmCrypto::decrypt(&key, encrypted_result.as_slice(), &iv, Some(&ad)).unwrap();
         assert_eq!(bytes, recovered);
     }
 
     #[test]
     fn test_encryption_decryption_aes256gcm_chunks() {
-        let crypto = Aes256GcmCrypto::new();
-        let key = crypto.generate_key();
-        let bytes = crypto.generate_random_bytes(10000);
-        let ad = crypto.generate_random_bytes(56);
+        let cs_rng = Mutex::new(CsRng::new());
+        let key = Key::new(&cs_rng);
+        let bytes = cs_rng
+            .lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .generate_random_bytes(10000);
+        let ad = cs_rng
+            .lock()
+            .expect("Could not get a hold on the mutex")
+            .deref_mut()
+            .generate_random_bytes(56);
+        let iv = Nonce::new(&cs_rng);
 
-        let iv = crypto.generate_nonce();
         let mut encrypted_result: Vec<u8> = vec![];
         encrypted_result.extend_from_slice(
-            &crypto
-                .encrypt(&key, &bytes[..4096], &iv, Some(&ad))
-                .unwrap(),
+            &Aes256GcmCrypto::encrypt(&key, &bytes[..4096], &iv, Some(&ad)).unwrap(),
         );
         let mut next_nonce = iv.increment(1);
         encrypted_result.extend_from_slice(
-            &crypto
-                .encrypt(&key, &bytes[4096..8192], &next_nonce, Some(&ad))
-                .unwrap(),
+            &Aes256GcmCrypto::encrypt(&key, &bytes[4096..8192], &next_nonce, Some(&ad)).unwrap(),
         );
         next_nonce = next_nonce.increment(1);
         encrypted_result.extend_from_slice(
-            &crypto
-                .encrypt(&key, &bytes[8192..], &next_nonce, Some(&ad))
-                .unwrap(),
+            &Aes256GcmCrypto::encrypt(&key, &bytes[8192..], &next_nonce, Some(&ad)).unwrap(),
         );
         assert_ne!(encrypted_result, bytes);
         assert_eq!(bytes.len() + 3 * MAC_LENGTH, encrypted_result.len());
         // decrypt
         let mut recovered: Vec<u8> = vec![];
         recovered.extend_from_slice(
-            &crypto
-                .decrypt(&key, &encrypted_result[..4096 + MAC_LENGTH], &iv, Some(&ad))
+            &Aes256GcmCrypto::decrypt(&key, &encrypted_result[..4096 + MAC_LENGTH], &iv, Some(&ad))
                 .unwrap(),
         );
         let mut next_nonce = iv.increment(1);
         assert_eq!(bytes[..4096], recovered[..4096]);
         recovered.extend_from_slice(
-            &crypto
-                .decrypt(
-                    &key,
-                    &encrypted_result[4096 + MAC_LENGTH..8192 + 2 * MAC_LENGTH],
-                    &next_nonce,
-                    Some(&ad),
-                )
-                .unwrap(),
+            &Aes256GcmCrypto::decrypt(
+                &key,
+                &encrypted_result[4096 + MAC_LENGTH..8192 + 2 * MAC_LENGTH],
+                &next_nonce,
+                Some(&ad),
+            )
+            .unwrap(),
         );
         assert_eq!(bytes[4096..8192], recovered[4096..8192]);
         next_nonce = next_nonce.increment(1);
         recovered.extend_from_slice(
-            &crypto
-                .decrypt(
-                    &key,
-                    &encrypted_result[8192 + 2 * MAC_LENGTH..],
-                    &next_nonce,
-                    Some(&ad),
-                )
-                .unwrap(),
+            &Aes256GcmCrypto::decrypt(
+                &key,
+                &encrypted_result[8192 + 2 * MAC_LENGTH..],
+                &next_nonce,
+                Some(&ad),
+            )
+            .unwrap(),
         );
         assert_eq!(bytes, recovered);
     }

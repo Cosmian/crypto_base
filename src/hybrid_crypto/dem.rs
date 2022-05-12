@@ -1,6 +1,6 @@
 use crate::{
     hybrid_crypto::Dem,
-    symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, Nonce, SymmetricCrypto},
+    symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, nonce::NonceTrait, SymmetricCrypto},
     Error, KeyTrait,
 };
 use rand_core::{CryptoRng, RngCore};

@@ -1,4 +1,5 @@
-use crate::symmetric_crypto::{Nonce, SymmetricCrypto};
+use crate::symmetric_crypto::nonce::NonceTrait;
+use crate::symmetric_crypto::SymmetricCrypto;
 use rand_core::{CryptoRng, RngCore};
 use std::convert::TryFrom;
 use std::sync::Mutex;

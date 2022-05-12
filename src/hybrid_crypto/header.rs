@@ -1,7 +1,8 @@
+use crate::symmetric_crypto::nonce::NonceTrait;
 use crate::{
     asymmetric::{AsymmetricCrypto, KeyPair},
     hybrid_crypto::BytesScanner,
-    symmetric_crypto::{Nonce, SymmetricCrypto},
+    symmetric_crypto::SymmetricCrypto,
 };
 use rand_core::{CryptoRng, RngCore};
 use std::{convert::TryFrom, sync::Mutex};

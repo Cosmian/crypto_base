@@ -4,7 +4,8 @@ use crate::{
     kdf::hkdf_256,
     symmetric_crypto::{
         aes_256_gcm_pure::{self, Aes256GcmCrypto},
-        Nonce as _, SymmetricCrypto,
+        nonce::NonceTrait,
+        SymmetricCrypto,
     },
     Error, KeyTrait,
 };
@@ -397,7 +398,7 @@ impl AsymmetricCrypto for X25519Crypto {
         let ephemeral_keypair = X25519KeyPair::new(&self.rng);
         let sym_key_bytes = Self::sym_key_from_public_key(&ephemeral_keypair, public_key)?;
         // use the pure rust aes implementation
-        let sym_key = aes_256_gcm_pure::Key(sym_key_bytes);
+        let sym_key = aes_256_gcm_pure::Key::from(sym_key_bytes);
         let nonce = aes_256_gcm_pure::Nonce::new(&self.rng);
         //prepare the result
         let mut result: Vec<u8> = Vec::with_capacity(data.len() + <Self>::ENCRYPTION_OVERHEAD);
@@ -434,7 +435,7 @@ impl AsymmetricCrypto for X25519Crypto {
         let ephemeral_public_key = X25519PublicKey::try_from(ephemeral_public_key_bytes)?;
         let sym_key_bytes = Self::sym_key_from_private_key(&ephemeral_public_key, private_key)?;
         // use the pure rust aes implementation
-        let sym_key = aes_256_gcm_pure::Key(sym_key_bytes);
+        let sym_key = aes_256_gcm_pure::Key::from(sym_key_bytes);
         let nonce_bytes = &data
             [<X25519PublicKey>::LENGTH..<X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH];
         let nonce = aes_256_gcm_pure::Nonce::try_from_slice(nonce_bytes)?;

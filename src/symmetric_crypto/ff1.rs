@@ -1,22 +1,9 @@
-use crate::{
-    symmetric_crypto::{Nonce as _, SymmetricCrypto},
-    Error, KeyTrait,
-};
+use crate::symmetric_crypto::SymmetricCrypto;
 use aes::Aes256;
 use cosmian_fpe::ff1::{FlexibleNumeralString, FF1};
 use itertools::Itertools;
 use num_traits::Bounded;
-use rand_core::{CryptoRng, RngCore};
-use std::{
-    cmp::min,
-    collections::HashMap,
-    convert::{TryFrom, TryInto},
-    fmt::Display,
-    ops::DerefMut,
-    str::FromStr,
-    sync::Mutex,
-    vec::Vec,
-};
+use std::{collections::HashMap, convert::TryFrom, fmt::Display, str::FromStr, vec::Vec};
 use tracing::trace;
 
 pub const RECOMMENDED_THRESHOLD: usize = 1_000_000;
@@ -24,143 +11,8 @@ pub const KEY_LENGTH: usize = 32;
 pub const NONCE_LENGTH: usize = 0;
 pub const MAC_LENGTH: usize = 0;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Key(pub [u8; KEY_LENGTH]);
-
-impl KeyTrait for Key {
-    const LENGTH: usize = KEY_LENGTH;
-
-    /// Generate a new symmetric random `Key`
-    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
-        let mut key = Self([0_u8; Self::LENGTH]);
-        rng.lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .fill_bytes(&mut key.0);
-        key
-    }
-
-    fn as_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-}
-
-impl TryFrom<Vec<u8>> for Key {
-    type Error = Error;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from(bytes.as_slice())
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for Key {
-    type Error = Error;
-
-    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        let b: [u8; Self::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
-            given: bytes.len(),
-            expected: Self::LENGTH,
-        })?;
-        Ok(Self(b))
-    }
-}
-
-impl Key {
-    #[must_use]
-    pub fn as_array(&self) -> [u8; 32] {
-        self.0
-    }
-}
-
-impl From<Key> for Vec<u8> {
-    fn from(k: Key) -> Vec<u8> {
-        k.0.to_vec()
-    }
-}
-
-impl Display for Key {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Nonce(pub [u8; NONCE_LENGTH]);
-
-impl super::Nonce for Nonce {
-    const LENGTH: usize = NONCE_LENGTH;
-
-    /// Generate a new symmetric random `Nonce`
-    fn new<R: RngCore + CryptoRng>(rng: &Mutex<R>) -> Self {
-        let mut key = [0_u8; NONCE_LENGTH];
-        rng.lock()
-            .expect("Could not get a hold on the mutex")
-            .deref_mut()
-            .fill_bytes(&mut key);
-        Self(key)
-    }
-
-    fn try_from_slice(bytes: &[u8]) -> Result<Self, Self::Error> {
-        let b: [u8; Self::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
-            given: bytes.len(),
-            expected: Self::LENGTH,
-        })?;
-        Ok(Self(b))
-    }
-
-    fn increment(&self, increment: usize) -> Self {
-        let mut vec = self.0.to_vec();
-        vec.extend_from_slice(&[0_u8; 128 - Self::LENGTH]);
-        let mut v = u128::from_le_bytes(
-            vec.try_into()
-                .expect("This should never happen: nonce is 96 bit < 128 bits"),
-        );
-        v += increment as u128;
-        Nonce(
-            v.to_be_bytes()[0..Self::LENGTH]
-                .try_into()
-                .expect("This should never happen: nonce is 96 bit < 128 bits"),
-        )
-    }
-
-    fn xor(&self, b2: &[u8]) -> Self {
-        let mut n = self.0;
-        for i in 0..min(b2.len(), NONCE_LENGTH) {
-            n[i] ^= b2[i];
-        }
-        Nonce(n)
-    }
-
-    fn as_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-}
-
-impl TryFrom<Vec<u8>> for Nonce {
-    type Error = Error;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from_slice(bytes.as_slice())
-    }
-}
-
-impl From<Nonce> for Vec<u8> {
-    fn from(n: Nonce) -> Vec<u8> {
-        n.0.to_vec()
-    }
-}
-
-impl From<Key> for [u8; KEY_LENGTH] {
-    fn from(k: Key) -> [u8; KEY_LENGTH] {
-        k.0
-    }
-}
-
-impl Display for Nonce {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
+pub type Key = crate::symmetric_crypto::key::Key<KEY_LENGTH>;
+pub type Nonce = crate::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Default)]

@@ -1,10 +1,6 @@
-use crate::{
-    symmetric_crypto::{Nonce as _, SymmetricCrypto},
-    Error, KeyTrait,
-};
+use crate::{Error, KeyTrait};
 use rand_core::{CryptoRng, RngCore};
 use std::{
-    cmp::min,
     convert::{TryFrom, TryInto},
     fmt::Display,
     ops::DerefMut,
@@ -56,6 +52,12 @@ impl<'a, const KEY_LENGTH: usize> TryFrom<&'a [u8]> for Key<KEY_LENGTH> {
             expected: KEY_LENGTH,
         })?;
         Ok(Self(b))
+    }
+}
+
+impl<const KEY_LENGTH: usize> From<[u8; KEY_LENGTH]> for Key<KEY_LENGTH> {
+    fn from(b: [u8; KEY_LENGTH]) -> Self {
+        Self(b)
     }
 }
 
