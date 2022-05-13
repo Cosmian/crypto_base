@@ -197,8 +197,12 @@ where
         })
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn as_bytes(&self) -> &[u8] {
         self.nonce.as_bytes()
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
     }
 }
 

@@ -9,7 +9,15 @@ use std::{
 #[derive(Debug, Clone, PartialEq)]
 pub struct Key<const KEY_LENGTH: usize>(pub [u8; KEY_LENGTH]);
 
+impl<const KEY_LENGTH: usize> Key<KEY_LENGTH> {
+    fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 impl<const KEY_LENGTH: usize> KeyTrait for Key<KEY_LENGTH> {
+    const LENGTH: usize = KEY_LENGTH;
+
     /// Generate a new symmetric random `Key`
     fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         let mut key = Self([0_u8; KEY_LENGTH]);
@@ -17,15 +25,13 @@ impl<const KEY_LENGTH: usize> KeyTrait for Key<KEY_LENGTH> {
         key
     }
 
-    fn as_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
+    fn to_bytes(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
     }
-
-    const LENGTH: usize = KEY_LENGTH;
 }
 
-impl<const KEY_LENGTH: usize> From<Key<KEY_LENGTH>> for Vec<u8> {
-    fn from(k: Key<KEY_LENGTH>) -> Vec<u8> {
+impl<const KEY_LENGTH: usize> From<&Key<KEY_LENGTH>> for Vec<u8> {
+    fn from(k: &Key<KEY_LENGTH>) -> Vec<u8> {
         k.0.to_vec()
     }
 }

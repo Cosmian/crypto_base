@@ -27,6 +27,13 @@ const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 #[derive(Clone, PartialEq, Debug)]
 pub struct X25519PrivateKey(Scalar);
 
+impl X25519PrivateKey {
+    #[must_use]
+    fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
 impl KeyTrait for X25519PrivateKey {
     const LENGTH: usize = 32;
 
@@ -35,8 +42,8 @@ impl KeyTrait for X25519PrivateKey {
     }
 
     #[must_use]
-    fn as_bytes(&self) -> Vec<u8> {
-        self.0.as_bytes().to_vec()
+    fn to_bytes(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
     }
 
     fn parse(bytes: Vec<u8>) -> Result<Self, Error> {
@@ -94,8 +101,8 @@ impl KeyTrait for X25519PublicKey {
     }
 
     #[must_use]
-    fn as_bytes(&self) -> Vec<u8> {
-        self.0.compress().as_bytes().to_vec()
+    fn to_bytes(&self) -> Vec<u8> {
+        self.0.compress().to_bytes().to_vec()
     }
 }
 
@@ -196,8 +203,8 @@ impl KeyPair for X25519KeyPair {
 #[allow(clippy::from_over_into)]
 impl Into<Vec<u8>> for X25519KeyPair {
     fn into(self) -> Vec<u8> {
-        let mut bytes = self.private_key().as_bytes();
-        bytes.append(&mut self.public_key().as_bytes());
+        let mut bytes = self.private_key().to_bytes();
+        bytes.append(&mut self.public_key().to_bytes());
         bytes
     }
 }
@@ -281,7 +288,7 @@ impl X25519Crypto {
         // create a 64 bytes master key using gʸ and the shared point
         let mut master = [0_u8; 2 * <X25519PublicKey>::LENGTH];
         master[..<X25519PublicKey>::LENGTH]
-            .clone_from_slice(&ephemeral_keypair.public_key.as_bytes());
+            .clone_from_slice(&ephemeral_keypair.public_key.to_bytes());
         master[<X25519PublicKey>::LENGTH..].clone_from_slice(&point.compress().to_bytes());
         //Derive a 256 bit key using HKDF
         Ok(hkdf_256(&master, 32, HKDF_INFO)?
@@ -298,7 +305,7 @@ impl X25519Crypto {
         let point = private_key.0 * ephemeral_public_key.0;
         // create a 64 bytes master key using gʸ and the shared point
         let mut master = [0_u8; 2 * <X25519PublicKey>::LENGTH];
-        master[..<X25519PublicKey>::LENGTH].clone_from_slice(&ephemeral_public_key.as_bytes());
+        master[..<X25519PublicKey>::LENGTH].clone_from_slice(&ephemeral_public_key.to_bytes());
         master[<X25519PublicKey>::LENGTH..].clone_from_slice(&point.compress().to_bytes());
         //Derive a 256 bit key using HKDF
         Ok(hkdf_256(&master, 32, HKDF_INFO)?
@@ -355,7 +362,7 @@ impl AsymmetricCrypto for X25519Crypto {
     ) -> anyhow::Result<(S::Key, Vec<u8>)> {
         let bytes: Vec<u8> = self.generate_random_bytes(S::Key::LENGTH);
         let symmetric_key = S::Key::try_from(bytes)?;
-        let encrypted_key = self.encrypt(public_key, None, &symmetric_key.as_bytes())?;
+        let encrypted_key = self.encrypt(public_key, None, &symmetric_key.to_bytes())?;
         Ok((symmetric_key, encrypted_key))
     }
 
@@ -404,7 +411,7 @@ impl AsymmetricCrypto for X25519Crypto {
             aes_256_gcm_pure::Nonce::new(&mut self.rng.lock().expect("a lock failed").deref_mut());
         //prepare the result
         let mut result: Vec<u8> = Vec::with_capacity(data.len() + <Self>::ENCRYPTION_OVERHEAD);
-        result.extend_from_slice(&ephemeral_keypair.public_key.as_bytes());
+        result.extend_from_slice(&ephemeral_keypair.public_key.to_bytes());
         result.extend_from_slice(&nonce.0);
         result.extend(Aes256GcmCrypto::encrypt(&sym_key, data, &nonce, None)?);
         Ok(result)
@@ -467,7 +474,7 @@ mod test {
         );
         assert_ne!(
             vec![0_u8; X25519PublicKey::LENGTH],
-            key_pair_1.public_key.as_bytes()
+            key_pair_1.public_key.to_bytes()
         );
         assert_eq!(
             X25519PrivateKey::LENGTH as usize,
@@ -475,7 +482,7 @@ mod test {
         );
         assert_eq!(
             X25519PublicKey::LENGTH as usize,
-            key_pair_1.public_key.as_bytes().len()
+            key_pair_1.public_key.to_bytes().len()
         );
         let key_pair_2 = crypto.generate_key_pair(None).unwrap();
         assert_ne!(key_pair_2.private_key, key_pair_1.private_key);

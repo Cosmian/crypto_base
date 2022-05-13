@@ -28,10 +28,10 @@ impl Kem for X25519Crypto {
         let ephemeral_keypair = Self::key_gen(rng);
 
         // encapsulation
-        let E = ephemeral_keypair.public_key().as_bytes();
+        let E = ephemeral_keypair.public_key().to_bytes();
 
         // shared secret
-        let PEH = (pk * ephemeral_keypair.private_key()).as_bytes();
+        let PEH = (pk * ephemeral_keypair.private_key()).to_bytes();
 
         // generate secret key
         let mut b = Vec::with_capacity(
@@ -50,7 +50,7 @@ impl Kem for X25519Crypto {
         let h = <Self::KeyPair as KeyPair>::PublicKey::try_from(E)? * sk;
 
         // TODO: check `h` is not null -> implement `is_zero`
-        let PEH = h.as_bytes();
+        let PEH = h.to_bytes();
 
         // generate secret key
         let mut b = [0u8; <Self::KeyPair as KeyPair>::PublicKey::LENGTH

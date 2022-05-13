@@ -29,7 +29,7 @@ pub trait KeyTrait:
 {
     const LENGTH: usize;
     fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self;
-    fn as_bytes(&self) -> Vec<u8>;
+    fn to_bytes(&self) -> Vec<u8>;
     fn parse(bytes: Vec<u8>) -> Result<Self, Error> {
         Self::try_from(bytes)
     }

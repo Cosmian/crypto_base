@@ -253,7 +253,7 @@ impl FF1Crypto {
     ) -> anyhow::Result<Vec<u8>> {
         let plaintext = plaintext.into_iter().map(u16::from).collect::<Vec<_>>();
         let ciphertext = Self::encrypt_u16(key, tweak, radix, plaintext)?;
-        let mut result = Vec::<u8>::new();
+        let mut result = Vec::with_capacity(ciphertext.len());
         for e in ciphertext {
             result.push(u8::try_from(e)?);
         }
@@ -268,7 +268,7 @@ impl FF1Crypto {
     ) -> anyhow::Result<Vec<u8>> {
         let ciphertext = ciphertext.into_iter().map(u16::from).collect::<Vec<_>>();
         let cleartext = Self::decrypt_u16(key, tweak, radix, ciphertext)?;
-        let mut result = Vec::<u8>::new();
+        let mut result = Vec::with_capacity(cleartext.len());
         for e in cleartext {
             result.push(u8::try_from(e)?);
         }

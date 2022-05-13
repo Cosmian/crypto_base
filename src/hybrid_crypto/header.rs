@@ -42,7 +42,7 @@ impl Metadata {
     /// Encode the metadata as a byte array
     ///
     /// The first 4 bytes is the u32 length of the UID as big endian bytes
-    pub fn as_bytes(&self) -> anyhow::Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
         if self.is_empty() {
             return Ok(vec![]);
         }
@@ -162,7 +162,7 @@ where
     ///  - [S+4+N, S+8+N[: big-endian u32: the size M of the symmetrically
     ///    encrypted Metadata
     ///  - [S+8+N,S+8+N+M[: the symmetrically encrypted metadata
-    pub fn as_bytes<R: CryptoRng + RngCore>(&self, rng: &mut R) -> anyhow::Result<Vec<u8>> {
+    pub fn to_bytes<R: CryptoRng + RngCore>(&self, rng: &mut R) -> anyhow::Result<Vec<u8>> {
         // ..size
         let mut bytes = u32_len(&self.encrypted_symmetric_key)?.to_vec();
         // ...bytes
@@ -176,7 +176,7 @@ where
             // Encrypted metadata
             let encrypted_metadata = S::encrypt(
                 &self.symmetric_key,
-                &self.metadata.as_bytes()?,
+                &self.metadata.to_bytes()?,
                 &nonce,
                 None,
             )?;
@@ -228,7 +228,7 @@ mod tests {
         };
         assert_eq!(
             &metadata_full,
-            &Metadata::from_bytes(&metadata_full.as_bytes()?)?
+            &Metadata::from_bytes(&metadata_full.to_bytes()?)?
         );
 
         // Partial metadata test
@@ -238,7 +238,7 @@ mod tests {
         };
         assert_eq!(
             &metadata_partial,
-            &Metadata::from_bytes(&metadata_partial.as_bytes()?)?
+            &Metadata::from_bytes(&metadata_partial.to_bytes()?)?
         );
         Ok(())
     }
@@ -261,7 +261,7 @@ mod tests {
             metadata_full.clone(),
         )?;
 
-        let bytes = header.as_bytes(&mut rng)?;
+        let bytes = header.to_bytes(&mut rng)?;
         let header_ =
             Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, key_pair.private_key())?;
 
@@ -279,7 +279,7 @@ mod tests {
             metadata_sec.clone(),
         )?;
 
-        let bytes = header.as_bytes(&mut rng)?;
+        let bytes = header.to_bytes(&mut rng)?;
         let header_ =
             Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, key_pair.private_key())?;
 
@@ -297,7 +297,7 @@ mod tests {
             metadata_empty.clone(),
         )?;
 
-        let bytes = header.as_bytes(&mut rng)?;
+        let bytes = header.to_bytes(&mut rng)?;
         let header_ =
             Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, key_pair.private_key())?;
 

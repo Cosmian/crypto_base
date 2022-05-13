@@ -18,7 +18,7 @@ pub trait NonceTrait:
     fn increment(&self, increment: usize) -> Self;
     #[must_use]
     fn xor(&self, b2: &[u8]) -> Self;
-    fn as_bytes(&self) -> Vec<u8>;
+    fn as_bytes(&self) -> &[u8];
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -57,8 +57,8 @@ impl<const NONCE_LENGTH: usize> NonceTrait for Nonce<NONCE_LENGTH> {
         Nonce(n)
     }
 
-    fn as_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
+    fn as_bytes(&self) -> &[u8] {
+        &self.0
     }
 }
 
