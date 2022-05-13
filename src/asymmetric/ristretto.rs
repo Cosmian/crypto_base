@@ -78,7 +78,7 @@ impl TryFrom<&str> for X25519PrivateKey {
     type Error = Error;
 
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
-        let bytes = hex::decode(value).map_err(|err| Error::HexParseError { err })?;
+        let bytes = hex::decode(value)?;
         X25519PrivateKey::try_from(bytes)
     }
 }
@@ -144,7 +144,7 @@ impl TryFrom<&str> for X25519PublicKey {
     type Error = Error;
 
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
-        let bytes = hex::decode(value).map_err(|err| Error::HexParseError { err })?;
+        let bytes = hex::decode(value)?;
         X25519PublicKey::try_from(bytes.as_slice())
     }
 }
@@ -374,9 +374,7 @@ impl AsymmetricCrypto for X25519Crypto {
     ) -> Result<S::Key, Error> {
         S::Key::parse(
             self.decrypt(private_key, data)
-                .map_err(|err| Error::DecryptionError {
-                    err: err.to_string(),
-                })?,
+                .map_err(|err| Error::DecryptionError(err.to_string()))?,
         )
     }
 

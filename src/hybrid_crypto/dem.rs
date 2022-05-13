@@ -23,10 +23,8 @@ impl Dem for Aes256GcmCrypto {
         // there is no need for parsing a MAC key
         let key = Self::Key::try_from(&K[..Self::Key::LENGTH])?;
         let nonce = Self::Nonce::new(rng);
-        let mut c =
-            Self::encrypt(&key, D, &nonce, Some(L)).map_err(|err| Error::EncryptionError {
-                err: err.to_string(),
-            })?;
+        let mut c = Self::encrypt(&key, D, &nonce, Some(L))
+            .map_err(|err| Error::EncryptionError(err.to_string()))?;
         // allocate correct byte number
         let mut res: Vec<u8> = Vec::with_capacity(D.len() + Self::ENCRYPTION_OVERHEAD);
         res.append(&mut nonce.into());
@@ -45,11 +43,8 @@ impl Dem for Aes256GcmCrypto {
         // there is no need for parsing a MAC key
         let key = Self::Key::try_from(&K[..Self::Key::LENGTH])?;
         let nonce = Self::Nonce::try_from(&E[..Self::Nonce::LENGTH])?;
-        Self::decrypt(&key, &E[Self::Nonce::LENGTH..], &nonce, Some(L)).map_err(|err| {
-            Error::EncryptionError {
-                err: err.to_string(),
-            }
-        })
+        Self::decrypt(&key, &E[Self::Nonce::LENGTH..], &nonce, Some(L))
+            .map_err(|err| Error::EncryptionError(err.to_string()))
     }
 }
 

@@ -5,15 +5,15 @@ pub enum Error {
     #[error("Wrong size: {given} given should be {expected}")]
     SizeError { given: usize, expected: usize },
     #[error("Failed to parse")]
-    HexParseError { err: hex::FromHexError },
+    HexParseError(#[from] hex::FromHexError),
     #[error("Failed to convert")]
     ConversionError,
-    #[error("{err}")]
-    KdfError { err: hkdf::InvalidLength },
+    #[error("{0}")]
+    KdfError(hkdf::InvalidLength),
     #[error("Key generation error")]
     KeyGenError,
-    #[error("{err}")]
-    EncryptionError { err: String },
-    #[error("{err}")]
-    DecryptionError { err: String },
+    #[error("{0}")]
+    EncryptionError(String),
+    #[error("{0}")]
+    DecryptionError(String),
 }
