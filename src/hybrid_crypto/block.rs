@@ -1,4 +1,7 @@
-use crate::symmetric_crypto::{Nonce, SymmetricCrypto};
+use crate::symmetric_crypto::nonce::NonceTrait;
+use crate::symmetric_crypto::SymmetricCrypto;
+use rand_core::{CryptoRng, RngCore};
+use std::convert::TryFrom;
 
 /// A block holds clear text data that needs to be encrypted.
 /// The max fixed length of clear text is set by the const generic
@@ -44,7 +47,6 @@ where
         uid: &[u8],
         block_number: usize,
     ) -> anyhow::Result<Self> {
-        let symmetric_crypto: S = S::default();
         // The block header is always present
         if encrypted_bytes.len() < Self::ENCRYPTION_OVERHEAD {
             anyhow::bail!(
@@ -67,7 +69,7 @@ where
         // `wasm32-unknown-unknown` builds.
         ad.extend(&(block_number as u64).to_le_bytes());
         // decrypt
-        let clear_text = symmetric_crypto.decrypt(
+        let clear_text = S::decrypt(
             symmetric_key,
             &encrypted_bytes[block_header_len..],
             &block_header.nonce,
@@ -83,15 +85,15 @@ where
     /// on each call. the resource `uid` and `block_number` are part of the AEAD
     /// and must be re-supplied to decrypt the bytes. They are used to guarantee
     /// that a block cannot be moved within and between resources
-    pub fn to_encrypted_bytes(
+    pub fn to_encrypted_bytes<R: RngCore + CryptoRng>(
         &self,
+        rng: &mut R,
         symmetric_key: &<S as SymmetricCrypto>::Key,
         uid: &[u8],
         block_number: usize,
     ) -> anyhow::Result<Vec<u8>> {
-        let symmetric_crypto: S = S::default();
         // refresh the nonce
-        let nonce = symmetric_crypto.generate_nonce();
+        let nonce = S::Nonce::new(rng);
         let mut ad = uid.to_vec();
         // Warning: usize can be interpret as u32 on 32-bits CPU-architecture.
         // The u64-cast prevents build on those 32-bits machine or on
@@ -103,7 +105,7 @@ where
         }
         .to_bytes();
         // write encrypted data
-        bytes.extend(symmetric_crypto.encrypt(
+        bytes.extend(S::encrypt(
             symmetric_key,
             &self.clear_text,
             &nonce,
@@ -190,19 +192,28 @@ where
         }
         //TODO: use transmute to make this faster ?
         Ok(Self {
-            nonce: <S as SymmetricCrypto>::Nonce::try_from_slice(bytes)?,
+            nonce: <<S as SymmetricCrypto>::Nonce>::try_from(bytes.to_vec())
+                .map_err(|err| anyhow::eyre!("{:?}", err))?,
         })
     }
 
+    pub fn as_bytes(&self) -> &[u8] {
+        self.nonce.as_bytes()
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.nonce.clone().into()
+        self.as_bytes().to_vec()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Block;
-    use crate::symmetric_crypto::aes_256_gcm_pure::{Aes256GcmCrypto, CsRng};
+    use crate::{
+        entropy::CsRng,
+        symmetric_crypto::aes_256_gcm_pure::{Aes256GcmCrypto, Key},
+        KeyTrait as _,
+    };
 
     const MAX_CLEAR_TEXT_LENGTH: usize = 4096;
     type Bl = Block<Aes256GcmCrypto, MAX_CLEAR_TEXT_LENGTH>;
@@ -212,11 +223,11 @@ mod tests {
         let b = Bl::new();
         assert!(b.clear_text().is_empty());
 
-        let mut cs_rng = CsRng::default();
-        let symmetric_key = cs_rng.generate_key();
+        let mut cs_rng = CsRng::new();
+        let symmetric_key = Key::new(&mut cs_rng);
         let uid = [1_u8; 32];
         // let iv = cs_rng.generate_nonce();
-        let encrypted_bytes = b.to_encrypted_bytes(&symmetric_key, &uid, 1)?;
+        let encrypted_bytes = b.to_encrypted_bytes(&mut cs_rng, &symmetric_key, &uid, 1)?;
         assert_eq!(Bl::ENCRYPTION_OVERHEAD, encrypted_bytes.len());
         let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)?;
         assert!(c.clear_text().is_empty());
@@ -225,8 +236,8 @@ mod tests {
 
     #[test]
     fn test_full_block() -> anyhow::Result<()> {
-        let mut cs_rng = CsRng::default();
-        let symmetric_key = cs_rng.generate_key();
+        let mut cs_rng = CsRng::new();
+        let symmetric_key = Key::new(&mut cs_rng);
         let uid = [1_u8; 32];
 
         let mut b = Bl::new();
@@ -236,7 +247,7 @@ mod tests {
         assert_eq!(MAX_CLEAR_TEXT_LENGTH, written);
 
         // let iv = cs_rng.generate_nonce();
-        let encrypted_bytes = b.to_encrypted_bytes(&symmetric_key, &uid, 1)?;
+        let encrypted_bytes = b.to_encrypted_bytes(&mut cs_rng, &symmetric_key, &uid, 1)?;
         assert_eq!(
             Bl::ENCRYPTION_OVERHEAD + MAX_CLEAR_TEXT_LENGTH,
             encrypted_bytes.len()
@@ -252,8 +263,8 @@ mod tests {
 
     #[test]
     fn test_partial_block() -> anyhow::Result<()> {
-        let mut cs_rng = CsRng::default();
-        let symmetric_key = cs_rng.generate_key();
+        let mut cs_rng = CsRng::new();
+        let symmetric_key = Key::new(&mut cs_rng);
         let uid = [1_u8; 32];
 
         let mut b = Bl::new();
@@ -268,7 +279,7 @@ mod tests {
         assert_eq!(100, written);
 
         // let iv = cs_rng.generate_nonce();
-        let encrypted_bytes = b.to_encrypted_bytes(&symmetric_key, &uid, 1)?;
+        let encrypted_bytes = b.to_encrypted_bytes(&mut cs_rng, &symmetric_key, &uid, 1)?;
         assert_eq!(300 + Bl::ENCRYPTION_OVERHEAD, encrypted_bytes.len());
         let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)?;
         let mut data: Vec<u8> = vec![];

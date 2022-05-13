@@ -1,14 +1,20 @@
 use hkdf::Hkdf;
 use sha2::Sha256;
 
-/// Derive a 256 bits key using a HMAC-based Extract-and-Expand Key Derivation
-/// Function (HKDF) supplying a `master` key and some `info` context String
+use crate::Error;
+
+/// Derive a key of `key_len` bytes using a HMAC-based Extract-and-Expand Key
+/// Derivation Function (HKDF) supplying a `master` key and some `info`
+/// context String. The hash function used is sha256.
 ///
-/// The hash function used is sha256
-pub fn hkdf_256(master: &[u8], info: &[u8]) -> anyhow::Result<[u8; 32]> {
+/// TODO: implement traits for KDF and implement other versions ?
+///
+/// - `master`  : input bytes to hash
+/// - `key_len` : length of the key to generate
+/// - `info`    : some optional additional information to use in the hash
+pub fn hkdf_256(master: &[u8], key_len: usize, info: &[u8]) -> Result<Vec<u8>, Error> {
     let h = Hkdf::<Sha256>::new(None, master);
-    let mut out = [0_u8; 32];
-    h.expand(info, &mut out)
-        .map_err(|e| anyhow::anyhow!("hkdf 256 failed. Invalid length: {}", e))?;
+    let mut out = vec![0_u8; key_len];
+    h.expand(info, &mut out).map_err(Error::KdfError)?;
     Ok(out)
 }

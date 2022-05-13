@@ -1,10 +1,11 @@
-use std::convert::TryFrom;
-
+use crate::symmetric_crypto::nonce::NonceTrait;
 use crate::{
     asymmetric::{AsymmetricCrypto, KeyPair},
     hybrid_crypto::BytesScanner,
-    symmetric_crypto::{Nonce, SymmetricCrypto},
+    symmetric_crypto::SymmetricCrypto,
 };
+use rand_core::{CryptoRng, RngCore};
+use std::convert::TryFrom;
 
 /// Metadata encrypted as part of the header
 ///
@@ -41,7 +42,7 @@ impl Metadata {
     /// Encode the metadata as a byte array
     ///
     /// The first 4 bytes is the u32 length of the UID as big endian bytes
-    pub fn as_bytes(&self) -> anyhow::Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
         if self.is_empty() {
             return Ok(vec![]);
         }
@@ -79,7 +80,7 @@ pub struct Header<A: AsymmetricCrypto, S: SymmetricCrypto> {
     /// metadata that are encrypted as part of the header
     metadata: Metadata,
     /// the randomly generated symmetric key used to encrypt the resources
-    symmetric_key: <S as SymmetricCrypto>::Key,
+    symmetric_key: S::Key,
     /// the encrypted symmetric key which is part of the header
     encrypted_symmetric_key: Vec<u8>,
 }
@@ -127,17 +128,14 @@ where
 
         let metadata = if scanner.has_more() {
             // Nonce
-            let nonce = <<S as SymmetricCrypto>::Nonce>::try_from_slice(
-                scanner.next(<<S as SymmetricCrypto>::Nonce>::LENGTH)?,
-            )?;
+            let nonce = S::Nonce::try_from_slice(scanner.next(S::Nonce::LENGTH)?)?;
 
             // encrypted metadata
             let encrypted_metadata_size = scanner.read_u32()? as usize;
 
             // UID
             let encrypted_metadata = scanner.next(encrypted_metadata_size)?;
-            let symmetric_scheme = <S as SymmetricCrypto>::new();
-            Metadata::from_bytes(&symmetric_scheme.decrypt(
+            Metadata::from_bytes(&S::decrypt(
                 &symmetric_key,
                 encrypted_metadata,
                 &nonce,
@@ -164,22 +162,21 @@ where
     ///  - [S+4+N, S+8+N[: big-endian u32: the size M of the symmetrically
     ///    encrypted Metadata
     ///  - [S+8+N,S+8+N+M[: the symmetrically encrypted metadata
-    pub fn as_bytes(&self) -> anyhow::Result<Vec<u8>> {
+    pub fn to_bytes<R: CryptoRng + RngCore>(&self, rng: &mut R) -> anyhow::Result<Vec<u8>> {
         // ..size
         let mut bytes = u32_len(&self.encrypted_symmetric_key)?.to_vec();
         // ...bytes
         bytes.extend(&self.encrypted_symmetric_key);
 
         if !&self.meta_data().is_empty() {
-            let symmetric_scheme = <S as SymmetricCrypto>::new();
             // Nonce
-            let nonce = symmetric_scheme.generate_nonce();
+            let nonce = S::Nonce::new(rng);
             bytes.extend(nonce.as_bytes());
 
             // Encrypted metadata
-            let encrypted_metadata = symmetric_scheme.encrypt(
+            let encrypted_metadata = S::encrypt(
                 &self.symmetric_key,
-                &self.metadata.as_bytes()?,
+                &self.metadata.to_bytes()?,
                 &nonce,
                 None,
             )?;
@@ -214,7 +211,8 @@ fn u32_len(slice: &[u8]) -> anyhow::Result<[u8; 4]> {
 mod tests {
 
     use crate::{
-        asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto},
+        asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
+        entropy::CsRng,
         hybrid_crypto::{header::Metadata, Header},
         symmetric_crypto::aes_256_gcm_pure::Aes256GcmCrypto,
     };
@@ -230,7 +228,7 @@ mod tests {
         };
         assert_eq!(
             &metadata_full,
-            &Metadata::from_bytes(&metadata_full.as_bytes()?)?
+            &Metadata::from_bytes(&metadata_full.to_bytes()?)?
         );
 
         // Partial metadata test
@@ -240,13 +238,14 @@ mod tests {
         };
         assert_eq!(
             &metadata_partial,
-            &Metadata::from_bytes(&metadata_partial.as_bytes()?)?
+            &Metadata::from_bytes(&metadata_partial.to_bytes()?)?
         );
         Ok(())
     }
 
     #[test]
     pub fn test_header() -> anyhow::Result<()> {
+        let mut rng = CsRng::new();
         let asymmetric_scheme = X25519Crypto::default();
         let key_pair = asymmetric_scheme.generate_key_pair(None)?;
 
@@ -257,14 +256,14 @@ mod tests {
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
-            &key_pair.public_key,
+            key_pair.public_key(),
             None,
             metadata_full.clone(),
         )?;
 
-        let bytes = header.as_bytes()?;
+        let bytes = header.to_bytes(&mut rng)?;
         let header_ =
-            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, &key_pair.private_key)?;
+            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, key_pair.private_key())?;
 
         assert_eq!(&metadata_full, &header_.metadata);
 
@@ -275,14 +274,14 @@ mod tests {
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
-            &key_pair.public_key,
+            key_pair.public_key(),
             None,
             metadata_sec.clone(),
         )?;
 
-        let bytes = header.as_bytes()?;
+        let bytes = header.to_bytes(&mut rng)?;
         let header_ =
-            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, &key_pair.private_key)?;
+            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, key_pair.private_key())?;
 
         assert_eq!(&metadata_sec, &header_.metadata);
 
@@ -293,14 +292,14 @@ mod tests {
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
-            &key_pair.public_key,
+            key_pair.public_key(),
             None,
             metadata_empty.clone(),
         )?;
 
-        let bytes = header.as_bytes()?;
+        let bytes = header.to_bytes(&mut rng)?;
         let header_ =
-            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, &key_pair.private_key)?;
+            Header::<X25519Crypto, Aes256GcmCrypto>::from_bytes(&bytes, key_pair.private_key())?;
 
         assert_eq!(&metadata_empty, &header_.metadata);
         Ok(())

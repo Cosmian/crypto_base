@@ -1,7 +1,11 @@
+pub mod distributions;
+
 use rand::{RngCore as _, SeedableRng};
 use rand_core::{CryptoRng, RngCore};
 use rand_hc::Hc128Rng;
 
+/// An implementation of a cryptographically secure
+/// pseudo random generator using HC128
 #[derive(Debug)]
 pub struct CsRng {
     rng: Hc128Rng,
@@ -9,10 +13,17 @@ pub struct CsRng {
 
 impl CsRng {
     #[must_use]
-    pub fn new() -> CsRng {
-        CsRng {
+    pub fn new() -> Self {
+        Self {
             rng: Hc128Rng::from_entropy(),
         }
+    }
+
+    /// Generate a vector of random bytes
+    pub fn generate_random_bytes(&mut self, len: usize) -> Vec<u8> {
+        let mut bytes = vec![0_u8; len];
+        self.rng.fill_bytes(&mut bytes);
+        bytes
     }
 }
 
@@ -40,23 +51,3 @@ impl RngCore for CsRng {
     }
 }
 impl CryptoRng for CsRng {}
-
-#[must_use]
-pub fn new_uid() -> [u8; 32] {
-    let mut rng = CsRng::new();
-    let mut v = [0_u8; 32];
-    rng.fill_bytes(&mut v);
-    v
-}
-
-/// PRNG for bytes array
-pub fn gen_bytes(output: &mut [u8]) -> anyhow::Result<()> {
-    let mut rng = CsRng::new();
-    anyhow::ensure!(
-        !output.is_empty(),
-        "Entropy generation failed: output empty!"
-    );
-
-    rng.fill_bytes(output);
-    Ok(())
-}

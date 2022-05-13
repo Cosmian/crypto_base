@@ -1,10 +1,13 @@
 {
     "cSpell.words": [
+        "Chacha",
         "ciphertext",
         "cleartext",
         "Cosmian",
         "ECIES",
+        "encaps",
         "HKDF",
+        "keypair",
         "libsodium",
         "ristretto"
     ]

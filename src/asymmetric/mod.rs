@@ -1,13 +1,25 @@
+use crate::{symmetric_crypto::SymmetricCrypto, Error, KeyTrait};
+use rand_core::{CryptoRng, RngCore};
+use std::{convert::TryFrom, vec::Vec};
+
 pub mod ristretto;
 
-use std::vec::Vec;
+pub trait KeyPair: TryFrom<Vec<u8>> + Into<Vec<u8>> {
+    /// Public key
+    type PublicKey: KeyTrait;
 
-use crate::symmetric_crypto::SymmetricCrypto;
+    /// Private key
+    type PrivateKey: KeyTrait;
 
-pub trait KeyPair {
-    type PublicKey;
-    type PrivateKey;
+    /// Generate a new private key / public key couple.
+    ///
+    /// - `rng` : secure random number generator
+    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self;
+
+    /// Return a reference to the public key.
     fn public_key(&self) -> &Self::PublicKey;
+
+    /// Return a reference to the private key.
     fn private_key(&self) -> &Self::PrivateKey;
 }
 
@@ -58,7 +70,7 @@ pub trait AsymmetricCrypto: Send + Sync + Default {
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         encrypted_symmetric_key: &[u8],
-    ) -> anyhow::Result<S::Key>;
+    ) -> Result<S::Key, Error>;
 
     /// A utility function to generate random bytes from an uniform distribution
     /// using a cryptographically secure RNG
