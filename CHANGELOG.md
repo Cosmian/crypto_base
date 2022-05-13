@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [1.1.0] - 2022-05-13
+### Added
+- KEM and DEM constructs
+### Changed
+- API changes on Symmetric Crypto and Asymmetric Crypto
+### Fixed
+- cleaner error management using this error
+- cleaned up CsRng constructs
+### Removed
+- remove the used of anyhow/eyre
+---
+
+
+---
 ## [0.5.3] - 2022-04-29
 ### Added
 ### Changed
