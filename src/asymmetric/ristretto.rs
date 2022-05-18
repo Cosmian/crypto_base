@@ -1,3 +1,17 @@
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt::Display,
+    ops::{DerefMut, Mul},
+    sync::Mutex,
+};
+
+use curve25519_dalek::{
+    constants,
+    ristretto::{CompressedRistretto, RistrettoPoint},
+    scalar::Scalar,
+};
+use rand_core::{CryptoRng, RngCore};
+
 use super::{AsymmetricCrypto, KeyPair};
 use crate::{
     entropy::CsRng,
@@ -8,18 +22,6 @@ use crate::{
         SymmetricCrypto,
     },
     Error, KeyTrait,
-};
-use curve25519_dalek::{
-    constants,
-    ristretto::{CompressedRistretto, RistrettoPoint},
-    scalar::Scalar,
-};
-use rand_core::{CryptoRng, RngCore};
-use std::{
-    convert::{TryFrom, TryInto},
-    fmt::Display,
-    ops::{DerefMut, Mul},
-    sync::Mutex,
 };
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
@@ -68,7 +70,9 @@ impl TryFrom<&[u8]> for X25519PrivateKey {
             given: len,
             expected: <Self>::LENGTH,
         })?;
-        let scalar = Scalar::from_canonical_bytes(bytes).ok_or(Error::ConversionError)?;
+        let scalar = Scalar::from_canonical_bytes(bytes).ok_or(Error::ConversionError(
+            "Given bytes do not represent a cannonical Scalar!".to_string(),
+        ))?;
         Ok(X25519PrivateKey(scalar))
     }
 }
@@ -94,7 +98,9 @@ impl Display for X25519PrivateKey {
 pub struct X25519PublicKey(RistrettoPoint);
 
 impl KeyTrait for X25519PublicKey {
-    const LENGTH: usize = 32; //compressed
+    const LENGTH: usize = 32;
+
+    //compressed
 
     fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         Self::from(&X25519PrivateKey::new(rng))
@@ -132,9 +138,9 @@ impl TryFrom<&[u8]> for X25519PublicKey {
             });
         };
         let compressed = CompressedRistretto::from_slice(value);
-        let point = compressed
-            .decompress()
-            .ok_or(Self::Error::ConversionError)?;
+        let point = compressed.decompress().ok_or(Error::ConversionError(
+            "Cannot decompress given bytes into a valid curve point!".to_string(),
+        ))?;
         Ok(X25519PublicKey(point))
     }
 }
@@ -282,7 +288,7 @@ impl X25519Crypto {
     pub fn sym_key_from_public_key(
         ephemeral_keypair: &X25519KeyPair, // (y, gʸ)
         public_key: &X25519PublicKey,      // gˣ
-    ) -> anyhow::Result<[u8; 32]> {
+    ) -> Result<[u8; 32], Error> {
         //calculate the shared point: (gˣ)ʸ
         let point = public_key.0 * ephemeral_keypair.private_key.0;
         // create a 64 bytes master key using gʸ and the shared point
@@ -300,7 +306,7 @@ impl X25519Crypto {
     pub fn sym_key_from_private_key(
         ephemeral_public_key: &X25519PublicKey, // gʸ
         private_key: &X25519PrivateKey,         // x
-    ) -> anyhow::Result<[u8; 32]> {
+    ) -> Result<[u8; 32], Error> {
         //calculate the shared point: (gʸ)ˣ
         let point = private_key.0 * ephemeral_public_key.0;
         // create a 64 bytes master key using gʸ and the shared point
@@ -337,7 +343,7 @@ impl AsymmetricCrypto for X25519Crypto {
     fn generate_private_key(
         &self,
         _: Option<&Self::PrivateKeyGenerationParameters>,
-    ) -> anyhow::Result<<Self::KeyPair as KeyPair>::PrivateKey> {
+    ) -> Result<<Self::KeyPair as KeyPair>::PrivateKey, Error> {
         Ok(X25519PrivateKey::new(
             &mut self.rng.lock().expect("a lock failed").deref_mut(),
         ))
@@ -347,7 +353,7 @@ impl AsymmetricCrypto for X25519Crypto {
     fn generate_key_pair(
         &self,
         _: Option<&Self::KeyPairGenerationParameters>,
-    ) -> anyhow::Result<Self::KeyPair> {
+    ) -> Result<Self::KeyPair, Error> {
         Ok(X25519KeyPair::new(
             &mut self.rng.lock().expect("a lock failed").deref_mut(),
         ))
@@ -359,7 +365,7 @@ impl AsymmetricCrypto for X25519Crypto {
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
         _: Option<&Self::EncryptionParameters>,
-    ) -> anyhow::Result<(S::Key, Vec<u8>)> {
+    ) -> Result<(S::Key, Vec<u8>), Error> {
         let bytes: Vec<u8> = self.generate_random_bytes(S::Key::LENGTH);
         let symmetric_key = S::Key::try_from(bytes)?;
         let encrypted_key = self.encrypt(public_key, None, &symmetric_key.to_bytes())?;
@@ -399,7 +405,7 @@ impl AsymmetricCrypto for X25519Crypto {
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
         _: Option<&Self::EncryptionParameters>,
         data: &[u8],
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         let ephemeral_keypair =
             X25519KeyPair::new(&mut self.rng.lock().expect("a lock failed").deref_mut());
         let sym_key_bytes = Self::sym_key_from_public_key(&ephemeral_keypair, public_key)?;
@@ -430,9 +436,11 @@ impl AsymmetricCrypto for X25519Crypto {
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         data: &[u8],
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         if data.len() < <Self>::ENCRYPTION_OVERHEAD {
-            anyhow::bail!("decryption failed: message is too short");
+            return Err(Error::InvalidSize(format!(
+                "decryption failed: message is too short"
+            )));
         }
         if data.len() == <Self>::ENCRYPTION_OVERHEAD {
             return Ok(vec![]);

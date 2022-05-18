@@ -1,10 +1,12 @@
-use crate::symmetric_crypto::SymmetricCrypto;
+use std::{collections::HashMap, convert::TryFrom, fmt::Display, str::FromStr, vec::Vec};
+
 use aes::Aes256;
 use cosmian_fpe::ff1::{FlexibleNumeralString, FF1};
 use itertools::Itertools;
 use num_traits::Bounded;
-use std::{collections::HashMap, convert::TryFrom, fmt::Display, str::FromStr, vec::Vec};
 use tracing::trace;
+
+use crate::{symmetric_crypto::SymmetricCrypto, Error};
 
 pub const RECOMMENDED_THRESHOLD: usize = 1_000_000;
 pub const KEY_LENGTH: usize = 32;
@@ -212,8 +214,13 @@ impl FF1Crypto {
         tweak: &[u8],
         radix: u32,
         plaintext: Vec<u16>,
-    ) -> anyhow::Result<Vec<u16>> {
-        anyhow::ensure!(key.len() == KEY_LENGTH, "Expected key size {}", KEY_LENGTH);
+    ) -> Result<Vec<u16>, Error> {
+        if key.len() != KEY_LENGTH {
+            return Err(Error::SizeError {
+                given: key.len(),
+                expected: KEY_LENGTH,
+            });
+        }
 
         let fpe_ff = FF1::<Aes256>::new(key, radix).expect("failed building new FF1");
         let ciphertext = fpe_ff
@@ -232,8 +239,13 @@ impl FF1Crypto {
         tweak: &[u8],
         radix: u32,
         ciphertext: Vec<u16>,
-    ) -> anyhow::Result<Vec<u16>> {
-        anyhow::ensure!(key.len() == KEY_LENGTH, "Expected key size {}", KEY_LENGTH);
+    ) -> Result<Vec<u16>, Error> {
+        if key.len() != KEY_LENGTH {
+            return Err(Error::SizeError {
+                given: key.len(),
+                expected: KEY_LENGTH,
+            });
+        }
 
         let fpe_ff = FF1::<Aes256>::new(key, radix).expect("failed building new FF1");
         let cleartext = fpe_ff
@@ -250,12 +262,12 @@ impl FF1Crypto {
         tweak: &[u8],
         radix: u32,
         plaintext: Vec<u8>,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         let plaintext = plaintext.into_iter().map(u16::from).collect::<Vec<_>>();
         let ciphertext = Self::encrypt_u16(key, tweak, radix, plaintext)?;
         let mut result = Vec::with_capacity(ciphertext.len());
         for e in ciphertext {
-            result.push(u8::try_from(e)?);
+            result.push(u8::try_from(e).map_err(|e| Error::InvalidSize(e.to_string()))?);
         }
         Ok(result)
     }
@@ -265,12 +277,12 @@ impl FF1Crypto {
         tweak: &[u8],
         radix: u32,
         ciphertext: Vec<u8>,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         let ciphertext = ciphertext.into_iter().map(u16::from).collect::<Vec<_>>();
         let cleartext = Self::decrypt_u16(key, tweak, radix, ciphertext)?;
         let mut result = Vec::with_capacity(cleartext.len());
         for e in cleartext {
-            result.push(u8::try_from(e)?);
+            result.push(u8::try_from(e).map_err(|e| Error::ConversionError(e.to_string()))?);
         }
         Ok(result)
     }
@@ -435,7 +447,7 @@ impl SymmetricCrypto for FF1Crypto {
         bytes: &[u8],
         _nonce: &Self::Nonce,
         _additional_data: Option<&[u8]>,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         Self::encrypt_u8(&key.0, &[], 256, bytes.to_vec())
     }
 
@@ -444,7 +456,7 @@ impl SymmetricCrypto for FF1Crypto {
         bytes: &[u8],
         _nonce: &Self::Nonce,
         _additional_data: Option<&[u8]>,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         Self::decrypt_u8(&key.0, &[], 256, bytes.to_vec())
     }
 }

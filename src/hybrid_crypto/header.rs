@@ -1,11 +1,13 @@
-use crate::symmetric_crypto::nonce::NonceTrait;
+use std::convert::TryFrom;
+
+use rand_core::{CryptoRng, RngCore};
+
 use crate::{
     asymmetric::{AsymmetricCrypto, KeyPair},
+    error::Error,
     hybrid_crypto::BytesScanner,
-    symmetric_crypto::SymmetricCrypto,
+    symmetric_crypto::{nonce::NonceTrait, SymmetricCrypto},
 };
-use rand_core::{CryptoRng, RngCore};
-use std::convert::TryFrom;
 
 /// Metadata encrypted as part of the header
 ///
@@ -42,7 +44,7 @@ impl Metadata {
     /// Encode the metadata as a byte array
     ///
     /// The first 4 bytes is the u32 length of the UID as big endian bytes
-    pub fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
         if self.is_empty() {
             return Ok(vec![]);
         }
@@ -201,9 +203,11 @@ where
 
 // Attempt getting the length of this slice as an u32 in 4 endian bytes and
 // return an error if it overflows
-fn u32_len(slice: &[u8]) -> anyhow::Result<[u8; 4]> {
+fn u32_len(slice: &[u8]) -> Result<[u8; 4], crate::Error> {
     u32::try_from(slice.len())
-        .map_err(|_e| anyhow::anyhow!("Slice of bytes is too big to fit in 2^32 bytes"))
+        .map_err(|_| {
+            Error::InvalidSize("Slice of bytes is too big to fit in 2^32 bytes".to_string())
+        })
         .map(u32::to_be_bytes)
 }
 
