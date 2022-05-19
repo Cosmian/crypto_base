@@ -1,8 +1,9 @@
-use rand_core::{CryptoRng, RngCore};
 use std::{
     convert::TryFrom,
     fmt::{Debug, Display},
 };
+
+use rand_core::{CryptoRng, RngCore};
 
 mod error;
 
@@ -25,7 +26,7 @@ pub mod sodium_bindings;
 pub use crate::error::Error;
 
 pub trait KeyTrait:
-    TryFrom<Vec<u8>, Error = Error> + PartialEq + Display + Debug + Sync + Send + Clone
+    TryFrom<Vec<u8>, Error = Error> + Into<Vec<u8>> + PartialEq + Display + Debug + Sync + Send + Clone
 {
     const LENGTH: usize;
     fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self;
