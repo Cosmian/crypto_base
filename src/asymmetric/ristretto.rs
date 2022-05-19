@@ -70,9 +70,9 @@ impl TryFrom<&[u8]> for X25519PrivateKey {
             given: len,
             expected: <Self>::LENGTH,
         })?;
-        let scalar = Scalar::from_canonical_bytes(bytes).ok_or(Error::ConversionError(
-            "Given bytes do not represent a cannonical Scalar!".to_string(),
-        ))?;
+        let scalar = Scalar::from_canonical_bytes(bytes).ok_or_else(|| {
+            Error::ConversionError("Given bytes do not represent a cannonical Scalar!".to_string())
+        })?;
         Ok(X25519PrivateKey(scalar))
     }
 }
@@ -138,9 +138,11 @@ impl TryFrom<&[u8]> for X25519PublicKey {
             });
         };
         let compressed = CompressedRistretto::from_slice(value);
-        let point = compressed.decompress().ok_or(Error::ConversionError(
-            "Cannot decompress given bytes into a valid curve point!".to_string(),
-        ))?;
+        let point = compressed.decompress().ok_or_else(|| {
+            Error::ConversionError(
+                "Cannot decompress given bytes into a valid curve point!".to_string(),
+            )
+        })?;
         Ok(X25519PublicKey(point))
     }
 }
@@ -438,9 +440,9 @@ impl AsymmetricCrypto for X25519Crypto {
         data: &[u8],
     ) -> Result<Vec<u8>, Error> {
         if data.len() < <Self>::ENCRYPTION_OVERHEAD {
-            return Err(Error::InvalidSize(format!(
-                "decryption failed: message is too short"
-            )));
+            return Err(Error::InvalidSize(
+                "decryption failed: message is too short".to_string(),
+            ));
         }
         if data.len() == <Self>::ENCRYPTION_OVERHEAD {
             return Ok(vec![]);
