@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 
 use rand_core::{CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     asymmetric::{AsymmetricCrypto, KeyPair},
@@ -20,7 +21,7 @@ use crate::{
 ///
 /// The `additional_data` is not used as a security parameter. It is optional
 /// data (such as index tags) symmetrically encrypted as part of the header.
-#[derive(Debug, PartialEq, Clone, Default)]
+#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct Metadata {
     pub uid: Vec<u8>,
     pub additional_data: Option<Vec<u8>>,
