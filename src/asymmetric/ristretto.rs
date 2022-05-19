@@ -11,6 +11,7 @@ use curve25519_dalek::{
     scalar::Scalar,
 };
 use rand_core::{CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
 
 use super::{AsymmetricCrypto, KeyPair};
 use crate::{
@@ -26,7 +27,8 @@ use crate::{
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(try_from = "Vec<u8>", into = "Vec<u8>")]
 pub struct X25519PrivateKey(Scalar);
 
 impl X25519PrivateKey {
@@ -77,6 +79,12 @@ impl TryFrom<&[u8]> for X25519PrivateKey {
     }
 }
 
+impl From<X25519PrivateKey> for Vec<u8> {
+    fn from(key: X25519PrivateKey) -> Self {
+        key.to_bytes()
+    }
+}
+
 /// Parse from an hex encoded String
 impl TryFrom<&str> for X25519PrivateKey {
     type Error = Error;
@@ -94,7 +102,8 @@ impl Display for X25519PrivateKey {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(try_from = "Vec<u8>", into = "Vec<u8>")]
 pub struct X25519PublicKey(RistrettoPoint);
 
 impl KeyTrait for X25519PublicKey {
@@ -144,6 +153,12 @@ impl TryFrom<&[u8]> for X25519PublicKey {
             )
         })?;
         Ok(X25519PublicKey(point))
+    }
+}
+
+impl From<X25519PublicKey> for Vec<u8> {
+    fn from(key: X25519PublicKey) -> Self {
+        key.to_bytes()
     }
 }
 
