@@ -49,13 +49,13 @@ pub trait AsymmetricCrypto: Send + Sync + Default {
     fn generate_key_pair(
         &self,
         parameters: Option<&Self::KeyPairGenerationParameters>,
-    ) -> anyhow::Result<Self::KeyPair>;
+    ) -> Result<Self::KeyPair, Error>;
 
     /// Generate a private key
     fn generate_private_key(
         &self,
         parameters: Option<&Self::PrivateKeyGenerationParameters>,
-    ) -> anyhow::Result<<Self::KeyPair as KeyPair>::PrivateKey>;
+    ) -> Result<<Self::KeyPair as KeyPair>::PrivateKey, Error>;
 
     /// Generate a symmetric key, and its encryption,to be used in an hybrid
     /// encryption scheme
@@ -63,7 +63,7 @@ pub trait AsymmetricCrypto: Send + Sync + Default {
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
         encryption_parameters: Option<&Self::EncryptionParameters>,
-    ) -> anyhow::Result<(S::Key, Vec<u8>)>;
+    ) -> Result<(S::Key, Vec<u8>), Error>;
 
     /// Decrypt a symmetric key used in an hybrid encryption scheme
     fn decrypt_symmetric_key<S: SymmetricCrypto>(
@@ -86,7 +86,7 @@ pub trait AsymmetricCrypto: Send + Sync + Default {
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
         encryption_parameters: Option<&Self::EncryptionParameters>,
         data: &[u8],
-    ) -> anyhow::Result<Vec<u8>>;
+    ) -> Result<Vec<u8>, Error>;
 
     /// The decrypted message length - this may not be known in certain schemes
     /// in which case zero is returned
@@ -97,5 +97,5 @@ pub trait AsymmetricCrypto: Send + Sync + Default {
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         cipher_text: &[u8],
-    ) -> anyhow::Result<Vec<u8>>;
+    ) -> Result<Vec<u8>, Error>;
 }

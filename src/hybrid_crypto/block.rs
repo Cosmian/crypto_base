@@ -1,7 +1,11 @@
-use crate::symmetric_crypto::nonce::NonceTrait;
-use crate::symmetric_crypto::SymmetricCrypto;
-use rand_core::{CryptoRng, RngCore};
 use std::convert::TryFrom;
+
+use rand_core::{CryptoRng, RngCore};
+
+use crate::{
+    symmetric_crypto::{nonce::NonceTrait, SymmetricCrypto},
+    Error,
+};
 
 /// A block holds clear text data that needs to be encrypted.
 /// The max fixed length of clear text is set by the const generic
@@ -46,19 +50,19 @@ where
         symmetric_key: &<S as SymmetricCrypto>::Key,
         uid: &[u8],
         block_number: usize,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, Error> {
         // The block header is always present
         if encrypted_bytes.len() < Self::ENCRYPTION_OVERHEAD {
-            anyhow::bail!(
+            return Err(Error::InvalidSize(format!(
                 "array of encrypted data bytes of length {} is too small",
                 encrypted_bytes.len(),
-            );
+            )));
         }
         if encrypted_bytes.len() > Self::MAX_ENCRYPTED_LENGTH {
-            anyhow::bail!(
+            return Err(Error::InvalidSize(format!(
                 "array of encrypted data bytes of length {} is too large",
                 encrypted_bytes.len(),
-            );
+            )));
         }
         let block_header_len: usize = BlockHeader::<S>::LENGTH;
         // recover the block header and regenerate the IV
@@ -91,7 +95,7 @@ where
         symmetric_key: &<S as SymmetricCrypto>::Key,
         uid: &[u8],
         block_number: usize,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         // refresh the nonce
         let nonce = S::Nonce::new(rng);
         let mut ad = uid.to_vec();
@@ -131,13 +135,12 @@ where
     /// block.
     ///
     /// Returns the length of the data written
-    pub fn write(&mut self, start_offset: usize, data: &[u8]) -> anyhow::Result<usize> {
+    pub fn write(&mut self, start_offset: usize, data: &[u8]) -> Result<usize, Error> {
         if start_offset >= MAX_CLEAR_TEXT_LENGTH {
-            anyhow::bail!(
+            return Err(Error::InvalidSize(format!(
                 "write in block: start offset: {} is greater than max block clear text len {}",
-                start_offset,
-                MAX_CLEAR_TEXT_LENGTH
-            );
+                start_offset, MAX_CLEAR_TEXT_LENGTH
+            )));
         }
         // pad if need be
         let num_to_pad = start_offset - self.clear_text.len();
@@ -182,18 +185,16 @@ where
 {
     pub const LENGTH: usize = <S as SymmetricCrypto>::Nonce::LENGTH;
 
-    pub fn parse(bytes: &[u8]) -> anyhow::Result<Self> {
+    pub fn parse(bytes: &[u8]) -> Result<Self, Error> {
         if bytes.len() != Self::LENGTH {
-            anyhow::bail!(
-                "Invalid block header length: {}, {} expected",
-                bytes.len(),
-                Self::LENGTH
-            )
+            return Err(Error::SizeError {
+                given: bytes.len(),
+                expected: Self::LENGTH,
+            });
         }
         //TODO: use transmute to make this faster ?
         Ok(Self {
-            nonce: <<S as SymmetricCrypto>::Nonce>::try_from(bytes.to_vec())
-                .map_err(|err| anyhow::eyre!("{:?}", err))?,
+            nonce: <<S as SymmetricCrypto>::Nonce>::try_from(bytes.to_vec())?,
         })
     }
 

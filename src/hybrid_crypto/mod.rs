@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
 use crate::{
-    asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
+    asymmetric::{ristretto::X25519Crypto, KeyPair},
     symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, SymmetricCrypto},
     Error, KeyTrait,
 };
@@ -22,7 +22,10 @@ pub use scanner::BytesScanner;
 /// scheme.
 ///
 /// TODO: should the KDF used be specified here?
-pub trait Kem: AsymmetricCrypto {
+pub trait Kem {
+    /// Asymmetric key pair
+    type KeyPair: KeyPair;
+
     /// Number of bytes of the secret key
     const SECRET_KEY_LENGTH: usize;
 
@@ -40,17 +43,14 @@ pub trait Kem: AsymmetricCrypto {
     /// - `pk`  : public key
     fn encaps<R: RngCore + CryptoRng>(
         rng: &mut R,
-        pk: &<<Self as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
+        pk: &<Self::KeyPair as KeyPair>::PublicKey,
     ) -> Result<(Vec<u8>, Vec<u8>), Error>;
 
     /// Generate the secret key from the given encapsulation and private key.
     ///
     /// - `sk`  : private key
     /// - `E`   : encapsulation
-    fn decaps(
-        sk: &<<Self as AsymmetricCrypto>::KeyPair as KeyPair>::PrivateKey,
-        E: &[u8],
-    ) -> Result<Vec<u8>, Error>;
+    fn decaps(sk: &<Self::KeyPair as KeyPair>::PrivateKey, E: &[u8]) -> Result<Vec<u8>, Error>;
 }
 
 pub trait Dem: SymmetricCrypto {

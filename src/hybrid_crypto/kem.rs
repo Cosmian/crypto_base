@@ -1,5 +1,5 @@
 use crate::{
-    asymmetric::{ristretto::X25519Crypto, KeyPair},
+    asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
     hybrid_crypto::{Error, Kem},
     kdf, KeyTrait,
 };
@@ -9,6 +9,8 @@ use std::convert::TryFrom;
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
 impl Kem for X25519Crypto {
+    type KeyPair = <Self as AsymmetricCrypto>::KeyPair;
+
     const SECRET_KEY_LENGTH: usize = 256;
 
     const ENCAPSULATION_SIZE: usize = <Self::KeyPair as KeyPair>::PublicKey::LENGTH;

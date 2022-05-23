@@ -1,9 +1,11 @@
-use crate::symmetric_crypto::SymmetricCrypto;
+use std::{fmt::Display, vec::Vec};
+
 use aes_gcm::{
     aead::{generic_array::GenericArray, Aead, NewAead, Payload},
     AeadInPlace, Aes256Gcm,
 }; // Or `Aes128Gcm`
-use std::{fmt::Display, vec::Vec};
+
+use crate::{symmetric_crypto::SymmetricCrypto, Error};
 
 // This implements AES 256 GCM, using a pure rust interface
 // It will use the AES native interface on the CPU if available
@@ -51,7 +53,7 @@ impl SymmetricCrypto for Aes256GcmCrypto {
         bytes: &[u8],
         nonce: &Self::Nonce,
         additional_data: Option<&[u8]>,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         encrypt_combined(key, bytes, nonce, additional_data)
     }
 
@@ -60,7 +62,7 @@ impl SymmetricCrypto for Aes256GcmCrypto {
         bytes: &[u8],
         nonce: &Self::Nonce,
         additional_data: Option<&[u8]>,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         decrypt_combined(key, bytes, nonce, additional_data)
     }
 }
@@ -75,7 +77,7 @@ pub fn encrypt_combined(
     bytes: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> anyhow::Result<Vec<u8>> {
+) -> Result<Vec<u8>, Error> {
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&key.0));
     let payload = if let Some(aad) = additional_data {
         Payload { msg: bytes, aad }
@@ -84,7 +86,7 @@ pub fn encrypt_combined(
     };
     cipher
         .encrypt(GenericArray::from_slice(&nonce.0), payload)
-        .map_err(|e| anyhow::anyhow!(e))
+        .map_err(|e| Error::EncryptionError(e.to_string()))
 }
 
 /// Encrypts a message in place using a secret key and a public nonce in
@@ -97,12 +99,12 @@ pub fn encrypt_in_place_detached(
     bytes: &mut [u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> anyhow::Result<Vec<u8>> {
+) -> Result<Vec<u8>, Error> {
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&key.0));
     let additional_data = additional_data.unwrap_or_default();
     cipher
         .encrypt_in_place_detached(GenericArray::from_slice(&nonce.0), additional_data, bytes)
-        .map_err(|e| anyhow::anyhow!(e))
+        .map_err(|e| Error::DecryptionError(e.to_string()))
         .map(|t| t.to_vec())
 }
 
@@ -117,7 +119,7 @@ pub fn decrypt_combined(
     bytes: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> anyhow::Result<Vec<u8>> {
+) -> Result<Vec<u8>, Error> {
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&key.0));
     let payload = if let Some(aad) = additional_data {
         Payload { msg: bytes, aad }
@@ -126,7 +128,7 @@ pub fn decrypt_combined(
     };
     cipher
         .decrypt(GenericArray::from_slice(&nonce.0), payload)
-        .map_err(|e| anyhow::anyhow!(e))
+        .map_err(|e| Error::DecryptionError(e.to_string()))
 }
 
 /// Decrypts a message in pace in detached mode.
@@ -142,7 +144,7 @@ pub fn decrypt_in_place_detached(
     tag: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> anyhow::Result<()> {
+) -> Result<(), Error> {
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&key.0));
     let additional_data = additional_data.unwrap_or_default();
     cipher
@@ -152,7 +154,7 @@ pub fn decrypt_in_place_detached(
             bytes,
             GenericArray::from_slice(tag),
         )
-        .map_err(|e| anyhow::anyhow!(e))
+        .map_err(|e| Error::DecryptionError(e.to_string()))
 }
 
 #[cfg(test)]

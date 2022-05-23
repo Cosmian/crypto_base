@@ -1,12 +1,14 @@
 use crate::{Error, KeyTrait};
 use rand_core::{CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Display,
     vec::Vec,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "Vec<u8>", into = "Vec<u8>")]
 pub struct Key<const KEY_LENGTH: usize>(pub [u8; KEY_LENGTH]);
 
 impl<const KEY_LENGTH: usize> Key<KEY_LENGTH> {
@@ -41,6 +43,12 @@ impl<const KEY_LENGTH: usize> TryFrom<Vec<u8>> for Key<KEY_LENGTH> {
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
         Self::try_from(bytes.as_slice())
+    }
+}
+
+impl<const KEY_LENGTH: usize> From<Key<KEY_LENGTH>> for Vec<u8> {
+    fn from(key: Key<KEY_LENGTH>) -> Self {
+        key.to_bytes()
     }
 }
 

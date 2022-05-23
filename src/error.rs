@@ -4,10 +4,12 @@ use thiserror::Error;
 pub enum Error {
     #[error("Wrong size: {given} given should be {expected}")]
     SizeError { given: usize, expected: usize },
+    #[error("Invlid size: {0}")]
+    InvalidSize(String),
     #[error("Failed to parse")]
     HexParseError(#[from] hex::FromHexError),
-    #[error("Failed to convert")]
-    ConversionError,
+    #[error("Failed to convert: {0}")]
+    ConversionError(String),
     #[error("{0}")]
     KdfError(hkdf::InvalidLength),
     #[error("Key generation error")]
