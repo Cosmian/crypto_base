@@ -18,9 +18,8 @@ pub mod sodium_bindings;
 
 pub use crate::error::Error;
 
-pub trait KeyTrait: Sized + Clone
-{
+pub trait KeyTrait: Sized + Clone {
     const LENGTH: usize;
     fn to_bytes(&self) -> Vec<u8>;
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error> ;
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error>;
 }

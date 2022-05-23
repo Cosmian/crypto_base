@@ -8,8 +8,7 @@ use std::{
     vec::Vec,
 };
 
-pub trait NonceTrait: Sized + Clone
-{
+pub trait NonceTrait: Sized + Clone {
     const LENGTH: usize;
     fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self;
     fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error>;
@@ -33,7 +32,7 @@ impl<const NONCE_LENGTH: usize> NonceTrait for Nonce<NONCE_LENGTH> {
     }
 
     fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error> {
-        let len=bytes.len();
+        let len = bytes.len();
         let b: [u8; NONCE_LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
             given: len,
             expected: NONCE_LENGTH,
@@ -95,8 +94,6 @@ impl<const NONCE_LENGTH: usize> Display for Nonce<NONCE_LENGTH> {
         write!(f, "{}", hex::encode(self.0))
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {

@@ -32,7 +32,6 @@ const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 pub struct X25519PrivateKey(Scalar);
 
 impl X25519PrivateKey {
-
     #[must_use]
     pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         X25519PrivateKey(Scalar::random(rng))
@@ -118,13 +117,12 @@ impl X25519PublicKey {
 impl KeyTrait for X25519PublicKey {
     const LENGTH: usize = 32;
 
-
     #[must_use]
     fn to_bytes(&self) -> Vec<u8> {
         self.0.compress().to_bytes().to_vec()
     }
 
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error>  {
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error> {
         Self::try_from(bytes)
     }
 }
@@ -218,7 +216,7 @@ impl X25519KeyPair {
             public_key,
         }
     }
-}    
+}
 
 impl KeyPair for X25519KeyPair {
     type PrivateKey = X25519PrivateKey;

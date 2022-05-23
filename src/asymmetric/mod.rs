@@ -1,5 +1,5 @@
 use crate::{symmetric_crypto::SymmetricCrypto, Error, KeyTrait};
-use std::{vec::Vec};
+use std::vec::Vec;
 
 pub mod ristretto;
 

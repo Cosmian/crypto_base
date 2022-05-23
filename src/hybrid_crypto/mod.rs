@@ -13,7 +13,7 @@ mod kem;
 mod scanner;
 
 pub use block::Block;
-pub use header::{Metadata};
+pub use header::Metadata;
 use rand_core::{CryptoRng, RngCore};
 pub use scanner::BytesScanner;
 

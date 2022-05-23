@@ -77,7 +77,7 @@ impl Metadata {
 /// A `Header` contains the the resource `uid` and an
 /// encryption of the symmetric key used to encrypt the resource content.
 /// The symmetric key is encrypted using a public key cryptographic scheme
-#[deprecated(note="this structure is too rigid as such and must be rewritten usin the Kem trait")]
+#[deprecated(note = "this structure is too rigid as such and must be rewritten usin the Kem trait")]
 #[derive(Debug, PartialEq)]
 pub struct Header<A: AsymmetricCrypto, S: SymmetricCrypto> {
     asymmetric_scheme: A,
@@ -218,13 +218,13 @@ fn u32_len(slice: &[u8]) -> Result<[u8; 4], crate::Error> {
 #[allow(deprecated)]
 mod tests {
 
+    use super::Header;
     use crate::{
         asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
         entropy::CsRng,
-        hybrid_crypto::{header::Metadata},
+        hybrid_crypto::header::Metadata,
         symmetric_crypto::aes_256_gcm_pure::Aes256GcmCrypto,
     };
-    use super::Header;
 
     #[test]
     pub fn test_meta_data() -> anyhow::Result<()> {
