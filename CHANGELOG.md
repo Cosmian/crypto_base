@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [1.2.0] - 2022-05-13
+### Added
+- KEM and DEM constructs
+### Changed
+- Removed dependency for KEM onAsymmetric Crypto
+### Fixed
+- Use of `thiserror ` in assymetric cryptp
+### Removed
+---
+
+
+---
 ## [1.1.0] - 2022-05-13
 ### Added
 - KEM and DEM constructs
