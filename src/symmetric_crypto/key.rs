@@ -12,6 +12,14 @@ use std::{
 pub struct Key<const KEY_LENGTH: usize>(pub [u8; KEY_LENGTH]);
 
 impl<const KEY_LENGTH: usize> Key<KEY_LENGTH> {
+
+    /// Generate a new symmetric random `Key`
+    pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        let mut key = Self([0_u8; KEY_LENGTH]);
+        rng.fill_bytes(&mut key.0);
+        key
+    }
+
     fn as_bytes(&self) -> &[u8] {
         &self.0
     }
@@ -20,15 +28,12 @@ impl<const KEY_LENGTH: usize> Key<KEY_LENGTH> {
 impl<const KEY_LENGTH: usize> KeyTrait for Key<KEY_LENGTH> {
     const LENGTH: usize = KEY_LENGTH;
 
-    /// Generate a new symmetric random `Key`
-    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        let mut key = Self([0_u8; KEY_LENGTH]);
-        rng.fill_bytes(&mut key.0);
-        key
-    }
-
     fn to_bytes(&self) -> Vec<u8> {
         self.as_bytes().to_vec()
+    }
+
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error>  {
+        Self::try_from(bytes)
     }
 }
 

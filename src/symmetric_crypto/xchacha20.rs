@@ -118,7 +118,7 @@ impl SymmetricCrypto for XChacha20Crypto {
 
 #[cfg(test)]
 mod tests {
-    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait, KeyTrait};
+    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait};
 
     use super::{
         Key, Nonce, SymmetricCrypto, XChacha20Crypto, KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH,

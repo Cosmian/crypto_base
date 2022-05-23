@@ -1,10 +1,3 @@
-use std::{
-    convert::TryFrom,
-    fmt::{Debug, Display},
-};
-
-use rand_core::{CryptoRng, RngCore};
-
 mod error;
 
 pub mod aes_hash_mmo;
@@ -25,13 +18,9 @@ pub mod sodium_bindings;
 
 pub use crate::error::Error;
 
-pub trait KeyTrait:
-    TryFrom<Vec<u8>, Error = Error> + Into<Vec<u8>> + PartialEq + Display + Debug + Sync + Send + Clone
+pub trait KeyTrait: Sized + Clone
 {
     const LENGTH: usize;
-    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self;
     fn to_bytes(&self) -> Vec<u8>;
-    fn parse(bytes: Vec<u8>) -> Result<Self, Error> {
-        Self::try_from(bytes)
-    }
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error> ;
 }

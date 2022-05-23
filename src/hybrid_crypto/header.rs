@@ -77,6 +77,7 @@ impl Metadata {
 /// A `Header` contains the the resource `uid` and an
 /// encryption of the symmetric key used to encrypt the resource content.
 /// The symmetric key is encrypted using a public key cryptographic scheme
+#[deprecated(note="this structure is too rigid as such and must be rewritten usin the Kem trait")]
 #[derive(Debug, PartialEq)]
 pub struct Header<A: AsymmetricCrypto, S: SymmetricCrypto> {
     asymmetric_scheme: A,
@@ -88,6 +89,7 @@ pub struct Header<A: AsymmetricCrypto, S: SymmetricCrypto> {
     encrypted_symmetric_key: Vec<u8>,
 }
 
+#[allow(deprecated, unused)]
 impl<A, S> Header<A, S>
 where
     A: AsymmetricCrypto,
@@ -131,7 +133,7 @@ where
 
         let metadata = if scanner.has_more() {
             // Nonce
-            let nonce = S::Nonce::try_from_slice(scanner.next(S::Nonce::LENGTH)?)?;
+            let nonce = S::Nonce::try_from_bytes(scanner.next(S::Nonce::LENGTH)?.to_vec())?;
 
             // encrypted metadata
             let encrypted_metadata_size = scanner.read_u32()? as usize;
@@ -174,7 +176,7 @@ where
         if !&self.meta_data().is_empty() {
             // Nonce
             let nonce = S::Nonce::new(rng);
-            bytes.extend(nonce.as_bytes());
+            bytes.extend(nonce.to_bytes());
 
             // Encrypted metadata
             let encrypted_metadata = S::encrypt(
@@ -213,14 +215,16 @@ fn u32_len(slice: &[u8]) -> Result<[u8; 4], crate::Error> {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
 
     use crate::{
         asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
         entropy::CsRng,
-        hybrid_crypto::{header::Metadata, Header},
+        hybrid_crypto::{header::Metadata},
         symmetric_crypto::aes_256_gcm_pure::Aes256GcmCrypto,
     };
+    use super::Header;
 
     #[test]
     pub fn test_meta_data() -> anyhow::Result<()> {

@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use rand_core::{CryptoRng, RngCore};
 
 use crate::{
@@ -194,12 +192,12 @@ where
         }
         //TODO: use transmute to make this faster ?
         Ok(Self {
-            nonce: <<S as SymmetricCrypto>::Nonce>::try_from(bytes.to_vec())?,
+            nonce: <<S as SymmetricCrypto>::Nonce>::try_from_bytes(bytes.to_vec())?,
         })
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        self.nonce.as_bytes()
+        self.nonce.to_bytes()
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -213,7 +211,6 @@ mod tests {
     use crate::{
         entropy::CsRng,
         symmetric_crypto::aes_256_gcm_pure::{Aes256GcmCrypto, Key},
-        KeyTrait as _,
     };
 
     const MAX_CLEAR_TEXT_LENGTH: usize = 4096;

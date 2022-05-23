@@ -3,7 +3,18 @@
 All notable changes to this project will be documented in this file.
 
 ---
-## [1.2.0] - 2022-05-13
+## [1.2.1] - 2022-05-24
+### Added
+### Changed
+### Fixed
+- Removed many bounds on traits for Keys
+### Removed
+- Deprecated Header in Hybrid Crypto
+---
+
+
+---
+## [1.2.0] - 2022-05-22
 ### Added
 ### Changed
 - Removed dependency for KEM on Asymmetric Crypto

@@ -353,7 +353,7 @@ impl SymmetricCrypto for Aes256GcmCrypto {
 #[cfg(test)]
 mod tests {
 
-    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait, KeyTrait};
+    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait};
 
     use super::*;
 

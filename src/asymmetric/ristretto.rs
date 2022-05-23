@@ -32,6 +32,12 @@ const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 pub struct X25519PrivateKey(Scalar);
 
 impl X25519PrivateKey {
+
+    #[must_use]
+    pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        X25519PrivateKey(Scalar::random(rng))
+    }
+
     #[must_use]
     fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
@@ -41,16 +47,12 @@ impl X25519PrivateKey {
 impl KeyTrait for X25519PrivateKey {
     const LENGTH: usize = 32;
 
-    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        X25519PrivateKey(Scalar::random(rng))
-    }
-
     #[must_use]
     fn to_bytes(&self) -> Vec<u8> {
         self.as_bytes().to_vec()
     }
 
-    fn parse(bytes: Vec<u8>) -> Result<Self, Error> {
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error> {
         Self::try_from(bytes)
     }
 }
@@ -106,18 +108,24 @@ impl Display for X25519PrivateKey {
 #[serde(try_from = "Vec<u8>", into = "Vec<u8>")]
 pub struct X25519PublicKey(RistrettoPoint);
 
+impl X25519PublicKey {
+    //compressed
+    pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        Self::from(&X25519PrivateKey::new(rng))
+    }
+}
+
 impl KeyTrait for X25519PublicKey {
     const LENGTH: usize = 32;
 
-    //compressed
-
-    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        Self::from(&X25519PrivateKey::new(rng))
-    }
 
     #[must_use]
     fn to_bytes(&self) -> Vec<u8> {
         self.0.compress().to_bytes().to_vec()
+    }
+
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error>  {
+        Self::try_from(bytes)
     }
 }
 
@@ -201,11 +209,8 @@ pub struct X25519KeyPair {
     public_key: X25519PublicKey,
 }
 
-impl KeyPair for X25519KeyPair {
-    type PrivateKey = X25519PrivateKey;
-    type PublicKey = X25519PublicKey;
-
-    fn new<R: RngCore + CryptoRng>(rng: &mut R) -> X25519KeyPair {
+impl X25519KeyPair {
+    pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         let private_key = X25519PrivateKey::new(rng);
         let public_key = X25519PublicKey::from(&private_key);
         X25519KeyPair {
@@ -213,6 +218,11 @@ impl KeyPair for X25519KeyPair {
             public_key,
         }
     }
+}    
+
+impl KeyPair for X25519KeyPair {
+    type PrivateKey = X25519PrivateKey;
+    type PublicKey = X25519PublicKey;
 
     fn public_key(&self) -> &Self::PublicKey {
         &self.public_key
@@ -384,7 +394,7 @@ impl AsymmetricCrypto for X25519Crypto {
         _: Option<&Self::EncryptionParameters>,
     ) -> Result<(S::Key, Vec<u8>), Error> {
         let bytes: Vec<u8> = self.generate_random_bytes(S::Key::LENGTH);
-        let symmetric_key = S::Key::try_from(bytes)?;
+        let symmetric_key = S::Key::try_from_bytes(bytes)?;
         let encrypted_key = self.encrypt(public_key, None, &symmetric_key.to_bytes())?;
         Ok((symmetric_key, encrypted_key))
     }
@@ -395,7 +405,7 @@ impl AsymmetricCrypto for X25519Crypto {
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         data: &[u8],
     ) -> Result<S::Key, Error> {
-        S::Key::parse(
+        S::Key::try_from_bytes(
             self.decrypt(private_key, data)
                 .map_err(|err| Error::DecryptionError(err.to_string()))?,
         )
@@ -470,7 +480,7 @@ impl AsymmetricCrypto for X25519Crypto {
         let sym_key = aes_256_gcm_pure::Key::from(sym_key_bytes);
         let nonce_bytes = &data
             [<X25519PublicKey>::LENGTH..<X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH];
-        let nonce = aes_256_gcm_pure::Nonce::try_from_slice(nonce_bytes)?;
+        let nonce = aes_256_gcm_pure::Nonce::try_from_bytes(nonce_bytes.to_vec())?;
         Aes256GcmCrypto::decrypt(
             &sym_key,
             &data[<X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH..],

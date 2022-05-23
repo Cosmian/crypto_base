@@ -161,7 +161,7 @@ pub fn decrypt_in_place_detached(
 mod tests {
 
     use super::*;
-    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait, KeyTrait};
+    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait};
 
     #[test]
     fn test_key() {

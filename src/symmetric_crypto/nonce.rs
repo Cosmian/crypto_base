@@ -8,17 +8,16 @@ use std::{
     vec::Vec,
 };
 
-pub trait NonceTrait:
-    TryFrom<Vec<u8>, Error = Error> + Clone + PartialEq + Display + Debug + Sync + Send
+pub trait NonceTrait: Sized + Clone
 {
     const LENGTH: usize;
     fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self;
-    fn try_from_slice(bytes: &[u8]) -> Result<Self, Error>;
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error>;
     #[must_use]
     fn increment(&self, increment: usize) -> Self;
     #[must_use]
     fn xor(&self, b2: &[u8]) -> Self;
-    fn as_bytes(&self) -> &[u8];
+    fn to_bytes(&self) -> &[u8];
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -33,9 +32,10 @@ impl<const NONCE_LENGTH: usize> NonceTrait for Nonce<NONCE_LENGTH> {
         Self(bytes)
     }
 
-    fn try_from_slice(bytes: &[u8]) -> Result<Self, Error> {
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error> {
+        let len=bytes.len();
         let b: [u8; NONCE_LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
-            given: bytes.len(),
+            given: len,
             expected: NONCE_LENGTH,
         })?;
         Ok(Self(b))
@@ -57,7 +57,7 @@ impl<const NONCE_LENGTH: usize> NonceTrait for Nonce<NONCE_LENGTH> {
         Nonce(n)
     }
 
-    fn as_bytes(&self) -> &[u8] {
+    fn to_bytes(&self) -> &[u8] {
         &self.0
     }
 }
@@ -66,7 +66,7 @@ impl<const NONCE_LENGTH: usize> TryFrom<Vec<u8>> for Nonce<NONCE_LENGTH> {
     type Error = Error;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from_slice(bytes.as_slice())
+        Self::try_from_bytes(bytes)
     }
 }
 
@@ -74,7 +74,7 @@ impl<'a, const NONCE_LENGTH: usize> TryFrom<&'a [u8]> for Nonce<NONCE_LENGTH> {
     type Error = Error;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        Self::try_from_slice(bytes)
+        Self::try_from_bytes(bytes.to_vec())
     }
 }
 
@@ -95,6 +95,8 @@ impl<const NONCE_LENGTH: usize> Display for Nonce<NONCE_LENGTH> {
         write!(f, "{}", hex::encode(self.0))
     }
 }
+
+
 
 #[cfg(test)]
 mod tests {
