@@ -45,7 +45,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --verbose --release
+          args: --verbose --release --all-features
 
   no-std:
     name: Check no-std target ${{ matrix.target }}
