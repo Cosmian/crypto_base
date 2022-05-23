@@ -10,6 +10,7 @@ use crate::{
         randombytes_buf, sodium_increment, sodium_init,
     },
     symmetric_crypto::{SymmetricCrypto, MIN_DATA_LENGTH},
+    Error,
 };
 
 pub const KEY_LENGTH: usize = crypto_aead_aes256gcm_KEYBYTES as usize;
@@ -283,7 +284,7 @@ impl SymmetricCrypto for Aes256GcmCrypto {
         bytes: &[u8],
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         let (ad, ad_len) = match additional_data {
             Some(b) => (b.as_ptr(), b.len() as u64),
             None => (std::ptr::null(), 0_u64),
@@ -303,7 +304,7 @@ impl SymmetricCrypto for Aes256GcmCrypto {
                 key.0.as_ptr(),
             ) != 0
             {
-                anyhow::bail!("encryption failed");
+                return Err(Error::EncryptionError("encryption failed".to_string()));
             };
         }
         Ok(result)
@@ -314,12 +315,14 @@ impl SymmetricCrypto for Aes256GcmCrypto {
         bytes: &[u8],
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         if bytes.is_empty() {
             return Ok(vec![]);
         }
         if bytes.len() < MAC_LENGTH + MIN_DATA_LENGTH {
-            anyhow::bail!("decryption failed - data too short");
+            return Err(Error::DecryptionError(
+                "decryption failed - data too short".to_string(),
+            ));
         }
         let clear_text_length = bytes.len() - MAC_LENGTH;
         let mut result: Vec<u8> = vec![0; clear_text_length];
@@ -341,7 +344,7 @@ impl SymmetricCrypto for Aes256GcmCrypto {
             )
         } != 0
         {
-            anyhow::bail!("decryption failed");
+            return Err(Error::DecryptionError("decryption failed".to_string()));
         }
         Ok(result)
     }

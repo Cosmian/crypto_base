@@ -5,6 +5,7 @@ use crate::{
         crypto_aead_xchacha20poly1305_ietf_encrypt, sodium_init,
     },
     symmetric_crypto::{SymmetricCrypto, MIN_DATA_LENGTH},
+    Error,
 };
 use std::sync::Once;
 use std::vec::Vec;
@@ -41,7 +42,7 @@ impl SymmetricCrypto for XChacha20Crypto {
         bytes: &[u8],
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         START.call_once(|| unsafe {
             sodium_init();
         });
@@ -50,7 +51,9 @@ impl SymmetricCrypto for XChacha20Crypto {
             return Ok(vec![]);
         }
         if bytes.len() < MAC_LENGTH + MIN_DATA_LENGTH {
-            anyhow::bail!("decryption failed - data too short");
+            return Err(Error::DecryptionError(
+                "decryption failed - data too short".to_string(),
+            ));
         }
         let clear_text_length = bytes.len() - MAC_LENGTH;
         let mut result: Vec<u8> = vec![0; clear_text_length];
@@ -72,7 +75,7 @@ impl SymmetricCrypto for XChacha20Crypto {
             )
         } != 0
         {
-            anyhow::bail!("decryption failed");
+            return Err(Error::DecryptionError("decryption failed".to_string()));
         }
         Ok(result)
     }
@@ -82,7 +85,7 @@ impl SymmetricCrypto for XChacha20Crypto {
         bytes: &[u8],
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> Result<Vec<u8>, Error> {
         START.call_once(|| unsafe {
             sodium_init();
         });
@@ -106,7 +109,7 @@ impl SymmetricCrypto for XChacha20Crypto {
                 key.0.as_ptr(),
             ) != 0
             {
-                anyhow::bail!("encryption failed");
+                return Err(Error::EncryptionError("encryption failed".to_string()));
             };
         }
         Ok(result)
