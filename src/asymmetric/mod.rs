@@ -45,7 +45,11 @@ pub trait AsymmetricCrypto: Send + Sync + Default {
         parameters: Option<&Self::KeyPairGenerationParameters>,
     ) -> Result<Self::KeyPair, Error>;
 
-    /// Encrypt a message
+    /// Encrypt a message using the given public key.
+    ///
+    /// - `public_key`              : public key to use to encrypt
+    /// - `encryption_paramters`    : optional additional paramters
+    /// - `data`                    : message to encrypt
     fn encrypt(
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
@@ -53,10 +57,13 @@ pub trait AsymmetricCrypto: Send + Sync + Default {
         data: &[u8],
     ) -> Result<Vec<u8>, Error>;
 
-    /// Decrypt a message
+    /// Decrypt a message using the given private key.
+    ///
+    /// - `private_key` : private key to use for decryption
+    /// - `ciphertext`  : ciphertext
     fn decrypt(
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
-        cipher_text: &[u8],
+        ciphertext: &[u8],
     ) -> Result<Vec<u8>, Error>;
 }

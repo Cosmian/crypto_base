@@ -354,17 +354,17 @@ impl AsymmetricCrypto for X25519Crypto {
     fn decrypt(
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
-        cipher_text: &[u8],
+        ciphertext: &[u8],
     ) -> Result<Vec<u8>, Error> {
-        if cipher_text.len() < X25519PublicKey::LENGTH * 2 {
+        if ciphertext.len() < X25519PublicKey::LENGTH * 2 {
             return Err(Error::SizeError {
-                given: cipher_text.len(),
+                given: ciphertext.len(),
                 expected: X25519PublicKey::LENGTH * 2,
             });
         }
         let c = (
-            X25519PublicKey::try_from(&cipher_text[..X25519PublicKey::LENGTH])?,
-            X25519PublicKey::try_from(&cipher_text[X25519PublicKey::LENGTH..])?,
+            X25519PublicKey::try_from(&ciphertext[..X25519PublicKey::LENGTH])?,
+            X25519PublicKey::try_from(&ciphertext[X25519PublicKey::LENGTH..])?,
         );
         let m = &c.0 - &(c.1 * private_key);
         Ok(m.to_bytes())
