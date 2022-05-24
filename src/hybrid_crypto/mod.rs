@@ -8,12 +8,12 @@ use crate::{
 
 mod block;
 mod dem;
-//mod header;
+mod header;
 mod kem;
 mod scanner;
 
 pub use block::Block;
-//pub use header::Metadata;
+pub use header::{Header, Metadata};
 use rand_core::{CryptoRng, RngCore};
 pub use scanner::BytesScanner;
 
