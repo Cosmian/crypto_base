@@ -121,7 +121,7 @@ mod tests {
     use super::{
         Key, Nonce, SymmetricCrypto, XChacha20Crypto, KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH,
     };
-    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait, KeyTrait};
+    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait};
 
     #[test]
     fn test_key() {
