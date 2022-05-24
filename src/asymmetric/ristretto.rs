@@ -1,10 +1,5 @@
-use std::{
-    convert::{TryFrom, TryInto},
-    fmt::Display,
-    ops::{DerefMut, Mul},
-    sync::Mutex,
-};
-
+use super::{AsymmetricCrypto, KeyPair};
+use crate::{entropy::CsRng, Error, KeyTrait};
 use curve25519_dalek::{
     constants,
     ristretto::{CompressedRistretto, RistrettoPoint},
@@ -12,20 +7,12 @@ use curve25519_dalek::{
 };
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-
-use super::{AsymmetricCrypto, KeyPair};
-use crate::{
-    entropy::CsRng,
-    kdf::hkdf_256,
-    symmetric_crypto::{
-        aes_256_gcm_pure::{self, Aes256GcmCrypto},
-        nonce::NonceTrait,
-        SymmetricCrypto,
-    },
-    Error, KeyTrait,
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt::Display,
+    ops::{Add, DerefMut, Mul, Sub},
+    sync::Mutex,
 };
-
-const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(try_from = "Vec<u8>", into = "Vec<u8>")]
@@ -201,6 +188,22 @@ impl<'a> Mul<&'a X25519PrivateKey> for X25519PublicKey {
     }
 }
 
+impl<'a, 'b> Add<&'a X25519PublicKey> for &'b X25519PublicKey {
+    type Output = X25519PublicKey;
+
+    fn add(self, rhs: &'a X25519PublicKey) -> Self::Output {
+        X25519PublicKey(self.0 + rhs.0)
+    }
+}
+
+impl<'a, 'b> Sub<&'a X25519PublicKey> for &'b X25519PublicKey {
+    type Output = X25519PublicKey;
+
+    fn sub(self, rhs: &'a X25519PublicKey) -> Self::Output {
+        X25519PublicKey(self.0 - rhs.0)
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct X25519KeyPair {
     private_key: X25519PrivateKey,
@@ -300,51 +303,6 @@ impl PartialEq for X25519Crypto {
     }
 }
 
-impl X25519Crypto {
-    /// For ECIES, cipher text needs to store:
-    //
-    // - the public key of the ephemeral keypair
-    // - the AES nonce/iv
-    // - the AES MAC
-    pub const ENCRYPTION_OVERHEAD: usize =
-        <X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH + aes_256_gcm_pure::MAC_LENGTH;
-
-    /// Generate a 256 bit symmetric key used with ECIES encryption
-    pub fn sym_key_from_public_key(
-        ephemeral_keypair: &X25519KeyPair, // (y, gʸ)
-        public_key: &X25519PublicKey,      // gˣ
-    ) -> Result<[u8; 32], Error> {
-        //calculate the shared point: (gˣ)ʸ
-        let point = public_key.0 * ephemeral_keypair.private_key.0;
-        // create a 64 bytes master key using gʸ and the shared point
-        let mut master = [0_u8; 2 * <X25519PublicKey>::LENGTH];
-        master[..<X25519PublicKey>::LENGTH]
-            .clone_from_slice(&ephemeral_keypair.public_key.to_bytes());
-        master[<X25519PublicKey>::LENGTH..].clone_from_slice(&point.compress().to_bytes());
-        //Derive a 256 bit key using HKDF
-        Ok(hkdf_256(&master, 32, HKDF_INFO)?
-            .try_into()
-            .expect("Size should be okay"))
-    }
-
-    /// Generate a 256 bit symmetric key used with ECIES decryption
-    pub fn sym_key_from_private_key(
-        ephemeral_public_key: &X25519PublicKey, // gʸ
-        private_key: &X25519PrivateKey,         // x
-    ) -> Result<[u8; 32], Error> {
-        //calculate the shared point: (gʸ)ˣ
-        let point = private_key.0 * ephemeral_public_key.0;
-        // create a 64 bytes master key using gʸ and the shared point
-        let mut master = [0_u8; 2 * <X25519PublicKey>::LENGTH];
-        master[..<X25519PublicKey>::LENGTH].clone_from_slice(&ephemeral_public_key.to_bytes());
-        master[<X25519PublicKey>::LENGTH..].clone_from_slice(&point.compress().to_bytes());
-        //Derive a 256 bit key using HKDF
-        Ok(hkdf_256(&master, 32, HKDF_INFO)?
-            .try_into()
-            .expect("Size should be okay"))
-    }
-}
-
 impl AsymmetricCrypto for X25519Crypto {
     type EncryptionParameters = ();
     type KeyPair = X25519KeyPair;
@@ -364,63 +322,14 @@ impl AsymmetricCrypto for X25519Crypto {
         "Ristretto X25519".to_string()
     }
 
-    /// Generate a private key
-    fn generate_private_key(
-        &self,
-        _: Option<&Self::PrivateKeyGenerationParameters>,
-    ) -> Result<<Self::KeyPair as KeyPair>::PrivateKey, Error> {
-        Ok(X25519PrivateKey::new(
-            &mut self.rng.lock().expect("a lock failed").deref_mut(),
-        ))
-    }
-
     /// Generate a key pair, private key and public key
-    fn generate_key_pair(
+    fn key_gen(
         &self,
         _: Option<&Self::KeyPairGenerationParameters>,
     ) -> Result<Self::KeyPair, Error> {
         Ok(X25519KeyPair::new(
-            &mut self.rng.lock().expect("a lock failed").deref_mut(),
+            self.rng.lock().expect("a lock failed").deref_mut(),
         ))
-    }
-
-    /// Generate a symmetric key, and its encryption,to be used in an hybrid
-    /// encryption scheme
-    fn generate_symmetric_key<S: SymmetricCrypto>(
-        &self,
-        public_key: &<Self::KeyPair as KeyPair>::PublicKey,
-        _: Option<&Self::EncryptionParameters>,
-    ) -> Result<(S::Key, Vec<u8>), Error> {
-        let bytes: Vec<u8> = self.generate_random_bytes(S::Key::LENGTH);
-        let symmetric_key = S::Key::try_from_bytes(bytes)?;
-        let encrypted_key = self.encrypt(public_key, None, &symmetric_key.to_bytes())?;
-        Ok((symmetric_key, encrypted_key))
-    }
-
-    /// Decrypt a symmetric key used in an hybrid encryption scheme
-    fn decrypt_symmetric_key<S: SymmetricCrypto>(
-        &self,
-        private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
-        data: &[u8],
-    ) -> Result<S::Key, Error> {
-        S::Key::try_from_bytes(
-            self.decrypt(private_key, data)
-                .map_err(|err| Error::DecryptionError(err.to_string()))?,
-        )
-    }
-
-    /// A utility function to generate random bytes from an uniform distribution
-    /// using a cryptographically secure RNG
-    fn generate_random_bytes(&self, len: usize) -> Vec<u8> {
-        let rng = &mut *self.rng.lock().expect("a mutex lock failed");
-        let mut bytes = vec![0_u8; len];
-        rng.fill_bytes(&mut bytes);
-        bytes
-    }
-
-    /// The encrypted message length
-    fn encrypted_message_length(&self, clear_text_message_length: usize) -> usize {
-        clear_text_message_length + <Self>::ENCRYPTION_OVERHEAD
     }
 
     /// Encrypt a message using ECIES
@@ -431,28 +340,13 @@ impl AsymmetricCrypto for X25519Crypto {
         _: Option<&Self::EncryptionParameters>,
         data: &[u8],
     ) -> Result<Vec<u8>, Error> {
-        let ephemeral_keypair =
-            X25519KeyPair::new(&mut self.rng.lock().expect("a lock failed").deref_mut());
-        let sym_key_bytes = Self::sym_key_from_public_key(&ephemeral_keypair, public_key)?;
-        // use the pure rust aes implementation
-        let sym_key = aes_256_gcm_pure::Key::from(sym_key_bytes);
-        let nonce =
-            aes_256_gcm_pure::Nonce::new(&mut self.rng.lock().expect("a lock failed").deref_mut());
-        //prepare the result
-        let mut result: Vec<u8> = Vec::with_capacity(data.len() + <Self>::ENCRYPTION_OVERHEAD);
-        result.extend_from_slice(&ephemeral_keypair.public_key.to_bytes());
-        result.extend_from_slice(&nonce.0);
-        result.extend(Aes256GcmCrypto::encrypt(&sym_key, data, &nonce, None)?);
-        Ok(result)
-    }
-
-    /// The decrypted message length
-    fn clear_text_message_length(encrypted_message_length: usize) -> usize {
-        if encrypted_message_length <= <Self>::ENCRYPTION_OVERHEAD {
-            0
-        } else {
-            encrypted_message_length - <Self>::ENCRYPTION_OVERHEAD
-        }
+        let m = X25519PublicKey::try_from(data)?;
+        let r = X25519PrivateKey::new(self.rng.lock().expect("Mutex lock fail").deref_mut());
+        let c = (&m + &(public_key * &r), X25519PublicKey::from(&r));
+        let mut res = Vec::with_capacity(X25519PublicKey::LENGTH * 2);
+        res.extend(c.0.to_bytes());
+        res.extend(c.1.to_bytes());
+        Ok(res)
     }
 
     /// Decrypt a message using ECIES
@@ -460,45 +354,32 @@ impl AsymmetricCrypto for X25519Crypto {
     fn decrypt(
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
-        data: &[u8],
+        cipher_text: &[u8],
     ) -> Result<Vec<u8>, Error> {
-        if data.len() < <Self>::ENCRYPTION_OVERHEAD {
-            return Err(Error::InvalidSize(
-                "decryption failed: message is too short".to_string(),
-            ));
+        if cipher_text.len() < X25519PublicKey::LENGTH * 2 {
+            return Err(Error::SizeError {
+                given: cipher_text.len(),
+                expected: X25519PublicKey::LENGTH * 2,
+            });
         }
-        if data.len() == <Self>::ENCRYPTION_OVERHEAD {
-            return Ok(vec![]);
-        }
-        // gʸ
-        let ephemeral_public_key_bytes = &data[0..<X25519PublicKey>::LENGTH];
-        let ephemeral_public_key = X25519PublicKey::try_from(ephemeral_public_key_bytes)?;
-        let sym_key_bytes = Self::sym_key_from_private_key(&ephemeral_public_key, private_key)?;
-        // use the pure rust aes implementation
-        let sym_key = aes_256_gcm_pure::Key::from(sym_key_bytes);
-        let nonce_bytes = &data
-            [<X25519PublicKey>::LENGTH..<X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH];
-        let nonce = aes_256_gcm_pure::Nonce::try_from_bytes(nonce_bytes.to_vec())?;
-        Aes256GcmCrypto::decrypt(
-            &sym_key,
-            &data[<X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH..],
-            &nonce,
-            None,
-        )
+        let c = (
+            X25519PublicKey::try_from(&cipher_text[..X25519PublicKey::LENGTH])?,
+            X25519PublicKey::try_from(&cipher_text[X25519PublicKey::LENGTH..])?,
+        );
+        let m = &c.0 - &(c.1 * private_key);
+        Ok(m.to_bytes())
     }
 }
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use std::convert::TryFrom;
-
-    use super::{AsymmetricCrypto, KeyPair, X25519Crypto, X25519PrivateKey, X25519PublicKey};
-    use crate::{symmetric_crypto::aes_256_gcm_pure, KeyTrait};
 
     #[test]
     fn test_generate_key_pair() {
         let crypto = super::X25519Crypto::new();
-        let key_pair_1 = crypto.generate_key_pair(None).unwrap();
+        let key_pair_1 = crypto.key_gen(None).unwrap();
         assert_ne!(
             &[0_u8; X25519PrivateKey::LENGTH],
             key_pair_1.private_key.0.as_bytes()
@@ -515,7 +396,7 @@ mod test {
             X25519PublicKey::LENGTH as usize,
             key_pair_1.public_key.to_bytes().len()
         );
-        let key_pair_2 = crypto.generate_key_pair(None).unwrap();
+        let key_pair_2 = crypto.key_gen(None).unwrap();
         assert_ne!(key_pair_2.private_key, key_pair_1.private_key);
         assert_ne!(key_pair_2.public_key, key_pair_1.public_key);
     }
@@ -523,7 +404,7 @@ mod test {
     #[test]
     fn test_parse_key_pair() {
         let crypto = super::X25519Crypto::new();
-        let key_pair = crypto.generate_key_pair(None).unwrap();
+        let key_pair = crypto.key_gen(None).unwrap();
         let hex = format!("{}", key_pair);
         let recovered =
             super::X25519KeyPair::try_from(hex::decode(hex).unwrap().as_slice()).unwrap();
@@ -533,7 +414,7 @@ mod test {
     #[test]
     fn test_parse_public_key() {
         let crypto = super::X25519Crypto::new();
-        let key_pair = crypto.generate_key_pair(None).unwrap();
+        let key_pair = crypto.key_gen(None).unwrap();
         let hex = format!("{}", key_pair.public_key());
         let recovered =
             super::X25519PublicKey::try_from(hex::decode(hex).unwrap().as_slice()).unwrap();
@@ -542,41 +423,11 @@ mod test {
 
     #[test]
     fn test_encryption_decryption() {
-        let crypto = super::X25519Crypto::new();
-        let random_msg = crypto.generate_random_bytes(4096);
-        assert_ne!(vec![0_u8; 4096], random_msg);
-        let key_pair: super::X25519KeyPair = crypto.generate_key_pair(None).unwrap();
-        let enc_bytes = crypto
-            .encrypt(&key_pair.public_key, None, &random_msg)
-            .unwrap();
-        assert_eq!(
-            4096_usize + <X25519Crypto>::ENCRYPTION_OVERHEAD,
-            crypto.encrypted_message_length(random_msg.len())
-        );
-        assert_eq!(
-            4096_usize,
-            super::X25519Crypto::clear_text_message_length(enc_bytes.len())
-        );
-        let clear_text = crypto.decrypt(&key_pair.private_key, &enc_bytes).unwrap();
-        assert_eq!(random_msg, clear_text);
-    }
-
-    #[test]
-    fn test_encryption_decryption_symmetric_key() {
-        let crypto = super::X25519Crypto::new();
-        let key_pair = crypto.generate_key_pair(None).unwrap();
-
-        let (sym_key, enc_sym_key) = crypto
-            .generate_symmetric_key::<aes_256_gcm_pure::Aes256GcmCrypto>(
-                key_pair.public_key(),
-                None,
-            )
-            .unwrap();
-        let decrypted_key = crypto.decrypt_symmetric_key::<aes_256_gcm_pure::Aes256GcmCrypto>(
-            &key_pair.private_key,
-            &enc_sym_key,
-        );
-        println!("decrypted_key: {:?}", decrypted_key);
-        assert_eq!(sym_key, decrypted_key.unwrap());
+        let crypto = X25519Crypto::new();
+        let key_pair = crypto.key_gen(None).unwrap();
+        let m = crypto.key_gen(None).unwrap().public_key().to_bytes();
+        let c = crypto.encrypt(&key_pair.public_key, None, &m).unwrap();
+        let res = crypto.decrypt(&key_pair.private_key, &c).unwrap();
+        assert_eq!(m, res);
     }
 }

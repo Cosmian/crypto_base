@@ -1,3 +1,5 @@
+use std::{sync::Once, vec::Vec};
+
 use crate::{
     sodium_bindings::{
         crypto_aead_xchacha20poly1305_ietf_ABYTES, crypto_aead_xchacha20poly1305_ietf_KEYBYTES,
@@ -7,8 +9,6 @@ use crate::{
     symmetric_crypto::{SymmetricCrypto, MIN_DATA_LENGTH},
     Error,
 };
-use std::sync::Once;
-use std::vec::Vec;
 
 static START: Once = Once::new();
 
@@ -118,11 +118,10 @@ impl SymmetricCrypto for XChacha20Crypto {
 
 #[cfg(test)]
 mod tests {
-    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait};
-
     use super::{
         Key, Nonce, SymmetricCrypto, XChacha20Crypto, KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH,
     };
+    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait, KeyTrait};
 
     #[test]
     fn test_key() {

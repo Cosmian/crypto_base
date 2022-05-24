@@ -39,6 +39,14 @@ impl Dem for Aes256GcmCrypto {
                 expected: Self::Key::LENGTH,
             });
         }
+
+        if E.len() < Self::Nonce::LENGTH {
+            return Err(Error::SizeError {
+                given: K.len(),
+                expected: Self::Nonce::LENGTH,
+            });
+        }
+
         // AES GCM includes an authentication method
         // there is no need for parsing a MAC key
         let key = Self::Key::try_from(&K[..Self::Key::LENGTH])?;

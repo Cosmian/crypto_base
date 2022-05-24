@@ -27,7 +27,7 @@ impl Kem for X25519Crypto {
         rng: &mut R,
         pk: &<Self::KeyPair as KeyPair>::PublicKey,
     ) -> Result<(Vec<u8>, Vec<u8>), Error> {
-        let ephemeral_keypair = Self::key_gen(rng);
+        let ephemeral_keypair = <Self as Kem>::key_gen(rng);
 
         // encapsulation
         let E = ephemeral_keypair.public_key().to_bytes();
@@ -73,7 +73,7 @@ mod tests {
     #[test]
     fn test_kem() -> Result<()> {
         let mut rng = CsRng::new();
-        let key_pair = X25519Crypto::key_gen(&mut rng);
+        let key_pair = <X25519Crypto as Kem>::key_gen(&mut rng);
         let (K, E) = X25519Crypto::encaps(&mut rng, key_pair.public_key())
             .map_err(|err| anyhow::eyre!("{:?}", err))?;
         let res = X25519Crypto::decaps(key_pair.private_key(), &E)

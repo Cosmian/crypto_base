@@ -8,9 +8,11 @@ pub mod aes_256_gcm_sodium;
 #[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
 pub mod xchacha20;
 
-use crate::{Error, KeyTrait};
-use nonce::NonceTrait;
 use std::vec::Vec;
+
+use nonce::NonceTrait;
+
+use crate::{Error, KeyTrait};
 
 pub const MIN_DATA_LENGTH: usize = 1;
 
