@@ -2,7 +2,7 @@
 
 use crate::{
     asymmetric::{ristretto::X25519Crypto, KeyPair},
-    symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, SymmetricCrypto},
+    symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, nonce::NonceTrait, SymmetricCrypto},
     Error, KeyTrait,
 };
 
@@ -13,7 +13,7 @@ mod kem;
 mod scanner;
 
 pub use block::Block;
-pub use header::Metadata;
+pub use header::{Header, Metadata};
 use rand_core::{CryptoRng, RngCore};
 pub use scanner::BytesScanner;
 
@@ -55,7 +55,7 @@ pub trait Kem {
 
 pub trait Dem: SymmetricCrypto {
     /// Number of bytes added to the message length in the ciphertext
-    const ENCRYPTION_OVERHEAD: usize = Self::Key::LENGTH + Self::MAC_LENGTH;
+    const ENCAPSULATION_OVERHEAD: usize = Self::Nonce::LENGTH + Self::MAC_LENGTH;
 
     /// Encapsulate data using a KEM-generated secret key `K`.
     ///
@@ -92,7 +92,8 @@ pub trait HybridCrypto<T: Kem, U: Dem> {
         let (K, mut E1) = T::encaps(rng, pk)?;
         let mut E2 = U::encaps(rng, &K, L, m)?;
         // allocate the correct number of bytes for the ciphertext
-        let mut res = Vec::with_capacity(T::ENCAPSULATION_SIZE + U::ENCRYPTION_OVERHEAD + m.len());
+        let mut res =
+            Vec::with_capacity(T::ENCAPSULATION_SIZE + U::ENCAPSULATION_OVERHEAD + m.len());
         res.append(&mut E1);
         res.append(&mut E2);
         Ok(res)

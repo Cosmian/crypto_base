@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 mod error;
 
 pub mod aes_hash_mmo;
@@ -18,7 +20,7 @@ pub mod sodium_bindings;
 
 pub use crate::error::Error;
 
-pub trait KeyTrait: Sized + Clone {
+pub trait KeyTrait: Sized + Clone + PartialEq + Debug {
     const LENGTH: usize;
     fn to_bytes(&self) -> Vec<u8>;
     fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error>;

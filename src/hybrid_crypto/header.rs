@@ -1,14 +1,14 @@
-use std::convert::TryFrom;
-
-use rand_core::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
-
+use super::{Dem, Kem};
 use crate::{
-    asymmetric::{AsymmetricCrypto, KeyPair},
+    asymmetric::KeyPair,
     error::Error,
     hybrid_crypto::BytesScanner,
     symmetric_crypto::{nonce::NonceTrait, SymmetricCrypto},
+    KeyTrait,
 };
+use rand_core::{CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
+use std::{convert::TryFrom, marker::PhantomData};
 
 /// Metadata encrypted as part of the header
 ///
@@ -77,39 +77,36 @@ impl Metadata {
 /// A `Header` contains the the resource `uid` and an
 /// encryption of the symmetric key used to encrypt the resource content.
 /// The symmetric key is encrypted using a public key cryptographic scheme
-#[deprecated(note = "this structure is too rigid as such and must be rewritten usin the Kem trait")]
 #[derive(Debug, PartialEq)]
-pub struct Header<A: AsymmetricCrypto, S: SymmetricCrypto> {
-    asymmetric_scheme: A,
+pub struct Header<K: Kem, D: Dem> {
     /// metadata that are encrypted as part of the header
     metadata: Metadata,
     /// the randomly generated symmetric key used to encrypt the resources
-    symmetric_key: S::Key,
+    symmetric_key: <D as SymmetricCrypto>::Key,
     /// the encrypted symmetric key which is part of the header
     encrypted_symmetric_key: Vec<u8>,
+    phantom_kem: PhantomData<K>,
+    phantom_dem: PhantomData<D>,
 }
 
-#[allow(deprecated, unused)]
-impl<A, S> Header<A, S>
-where
-    A: AsymmetricCrypto,
-    S: SymmetricCrypto,
-{
+impl<K: Kem, D: Dem> Header<K, D> {
     /// Generate a new encrypted resource header from a uid and
     /// the symmetric key used to encrypt the resource content
-    pub fn generate(
-        public_key: &<<A as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
-        encryption_parameters: Option<&<A as AsymmetricCrypto>::EncryptionParameters>,
+    pub fn generate<R: CryptoRng + RngCore>(
+        rng: &mut R,
+        public_key: &<<K as Kem>::KeyPair as KeyPair>::PublicKey,
         metadata: Metadata,
     ) -> anyhow::Result<Self> {
-        let asymmetric_scheme = A::default();
-        let (symmetric_key, encrypted_symmetric_key) =
-            asymmetric_scheme.generate_symmetric_key::<S>(public_key, encryption_parameters)?;
+        let (K, E) = <K as Kem>::encaps(rng, public_key)?;
+        let symmetric_key = <D as SymmetricCrypto>::Key::try_from_bytes(
+            K[..<<D as SymmetricCrypto>::Key as KeyTrait>::LENGTH].to_vec(),
+        )?;
         Ok(Header {
-            asymmetric_scheme,
             metadata,
             symmetric_key,
-            encrypted_symmetric_key,
+            encrypted_symmetric_key: E,
+            phantom_kem: PhantomData,
+            phantom_dem: PhantomData,
         })
     }
 
@@ -117,7 +114,7 @@ where
     /// See `to_bytes()` for details on the format
     pub fn from_bytes(
         bytes: &[u8],
-        private_key: &<<A as AsymmetricCrypto>::KeyPair as KeyPair>::PrivateKey,
+        private_key: &<<K as Kem>::KeyPair as KeyPair>::PrivateKey,
     ) -> anyhow::Result<Self> {
         // scan the input bytes
         let mut scanner = BytesScanner::new(bytes);
@@ -127,20 +124,21 @@ where
         let encrypted_symmetric_key = scanner.next(encrypted_symmetric_key_size)?.to_vec();
 
         // symmetric key
-        let asymmetric_scheme = A::default();
-        let symmetric_key =
-            asymmetric_scheme.decrypt_symmetric_key::<S>(private_key, &encrypted_symmetric_key)?;
+        let K = <K as Kem>::decaps(private_key, &encrypted_symmetric_key)?;
+        let symmetric_key = <D as SymmetricCrypto>::Key::try_from_bytes(
+            K[..<<D as SymmetricCrypto>::Key as KeyTrait>::LENGTH].to_vec(),
+        )?;
 
         let metadata = if scanner.has_more() {
             // Nonce
-            let nonce = S::Nonce::try_from_bytes(scanner.next(S::Nonce::LENGTH)?.to_vec())?;
+            let nonce = D::Nonce::try_from_bytes(scanner.next(D::Nonce::LENGTH)?.to_vec())?;
 
             // encrypted metadata
             let encrypted_metadata_size = scanner.read_u32()? as usize;
 
             // UID
             let encrypted_metadata = scanner.next(encrypted_metadata_size)?;
-            Metadata::from_bytes(&S::decrypt(
+            Metadata::from_bytes(&D::decrypt(
                 &symmetric_key,
                 encrypted_metadata,
                 &nonce,
@@ -151,10 +149,11 @@ where
         };
 
         Ok(Header {
-            asymmetric_scheme,
             metadata,
             symmetric_key,
             encrypted_symmetric_key,
+            phantom_kem: PhantomData,
+            phantom_dem: PhantomData,
         })
     }
 
@@ -175,11 +174,11 @@ where
 
         if !&self.meta_data().is_empty() {
             // Nonce
-            let nonce = S::Nonce::new(rng);
+            let nonce = D::Nonce::new(rng);
             bytes.extend(nonce.to_bytes());
 
             // Encrypted metadata
-            let encrypted_metadata = S::encrypt(
+            let encrypted_metadata = D::encrypt(
                 &self.symmetric_key,
                 &self.metadata.to_bytes()?,
                 &nonce,
@@ -194,7 +193,7 @@ where
     }
 
     /// The clear text symmetric key generated in the header
-    pub fn symmetric_key(&self) -> &S::Key {
+    pub fn symmetric_key(&self) -> &D::Key {
         &self.symmetric_key
     }
 
@@ -218,22 +217,21 @@ fn u32_len(slice: &[u8]) -> Result<[u8; 4], crate::Error> {
 #[allow(deprecated)]
 mod tests {
 
-    use super::Header;
     use crate::{
-        asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
+        asymmetric::{ristretto::X25519Crypto, KeyPair},
         entropy::CsRng,
-        hybrid_crypto::header::Metadata,
+        hybrid_crypto::{header::Metadata, Header, Kem},
         symmetric_crypto::aes_256_gcm_pure::Aes256GcmCrypto,
     };
 
     #[test]
     pub fn test_meta_data() -> anyhow::Result<()> {
-        let asymmetric_scheme = X25519Crypto::default();
+        let mut rng = CsRng::new();
 
         // Full metadata test
         let metadata_full = Metadata {
-            uid: asymmetric_scheme.generate_random_bytes(32),
-            additional_data: Some(asymmetric_scheme.generate_random_bytes(256)),
+            uid: rng.generate_random_bytes(32),
+            additional_data: Some(rng.generate_random_bytes(256)),
         };
         assert_eq!(
             &metadata_full,
@@ -242,7 +240,7 @@ mod tests {
 
         // Partial metadata test
         let metadata_partial = Metadata {
-            uid: asymmetric_scheme.generate_random_bytes(32),
+            uid: rng.generate_random_bytes(32),
             additional_data: None,
         };
         assert_eq!(
@@ -255,18 +253,17 @@ mod tests {
     #[test]
     pub fn test_header() -> anyhow::Result<()> {
         let mut rng = CsRng::new();
-        let asymmetric_scheme = X25519Crypto::default();
-        let key_pair = asymmetric_scheme.generate_key_pair(None)?;
+        let key_pair = <X25519Crypto as Kem>::key_gen(&mut rng);
 
         // Full metadata test
         let metadata_full = Metadata {
-            uid: asymmetric_scheme.generate_random_bytes(32),
-            additional_data: Some(asymmetric_scheme.generate_random_bytes(256)),
+            uid: rng.generate_random_bytes(32),
+            additional_data: Some(rng.generate_random_bytes(256)),
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
+            &mut rng,
             key_pair.public_key(),
-            None,
             metadata_full.clone(),
         )?;
 
@@ -278,13 +275,13 @@ mod tests {
 
         // sec only metadata test
         let metadata_sec = Metadata {
-            uid: asymmetric_scheme.generate_random_bytes(32),
+            uid: rng.generate_random_bytes(32),
             additional_data: None,
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
+            &mut rng,
             key_pair.public_key(),
-            None,
             metadata_sec.clone(),
         )?;
 
@@ -301,8 +298,8 @@ mod tests {
         };
 
         let header = Header::<X25519Crypto, Aes256GcmCrypto>::generate(
+            &mut rng,
             key_pair.public_key(),
-            None,
             metadata_empty.clone(),
         )?;
 
