@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [1.3.0] - 2022-05-31
+### Added
+- de-hardcoded secret key length in KEM
+### Changed
+ - refactored KEM ad DEM implementations
+### Fixed
+- snake_case variables
+### Removed
+---
+
+---
 ## [1.2.2] - 2022-05-24
 ### Added
 ### Changed
