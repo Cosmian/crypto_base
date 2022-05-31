@@ -43,8 +43,19 @@ pub trait HybridCrypto<T: Kem, U: Dem> {
         additional_data: Option<&[u8]>,
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, Error> {
-        let secret_key = T::decaps(sk, &ciphertext[..U::Key::LENGTH], U::Key::LENGTH)?;
-        U::decaps(&secret_key, additional_data, &ciphertext[U::Key::LENGTH..])
+        if ciphertext.len() < T::ENCAPSULATION_SIZE {
+            return Err(Error::InvalidSize(format!(
+                "decrypt: ciphertext has size: {}, it should be at least: {}",
+                ciphertext.len(),
+                T::ENCAPSULATION_SIZE
+            )));
+        }
+        let secret_key = T::decaps(sk, &ciphertext[..T::ENCAPSULATION_SIZE], U::Key::LENGTH)?;
+        U::decaps(
+            &secret_key,
+            additional_data,
+            &ciphertext[T::ENCAPSULATION_SIZE..],
+        )
     }
 }
 

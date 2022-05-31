@@ -9,7 +9,7 @@ pub trait Dem: SymmetricCrypto {
     ///
     /// - `rng` : secure random number generator
     /// - `secret_key`      : KEM-generated secret key
-    /// - `optional_data`   : optional label to use in the authentication method
+    /// - `additional_data` : optional data to use in the authentication method
     /// - `message`         : message to encapsulate
     fn encaps<R: RngCore + CryptoRng>(
         rng: &mut R,
@@ -20,9 +20,9 @@ pub trait Dem: SymmetricCrypto {
 
     /// Decapsulate using a KEM-generated secret key `K`.
     ///
-    /// - `secret_key`    : KEM-generated secret key
-    /// - `optional_data` : optional label to use in the authentication method
-    /// - `encapsulation` : encapsulation of the message
+    /// - `secret_key`      : KEM-generated secret key
+    /// - `additional_data` : optional data to use in the authentication method
+    /// - `encapsulation`   : encapsulation of the message
     fn decaps(
         secret_key: &[u8],
         additional_data: Option<&[u8]>,
