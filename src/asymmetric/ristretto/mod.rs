@@ -1,17 +1,4 @@
-use std::{
-    convert::{TryFrom, TryInto},
-    fmt::Display,
-    ops::{DerefMut, Mul},
-    sync::Mutex,
-};
-
-use curve25519_dalek::{
-    constants,
-    ristretto::{CompressedRistretto, RistrettoPoint},
-    scalar::Scalar,
-};
-use rand_core::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
+pub mod kem;
 
 use super::{AsymmetricCrypto, KeyPair};
 use crate::{
@@ -23,6 +10,19 @@ use crate::{
         SymmetricCrypto,
     },
     Error, KeyTrait,
+};
+use curve25519_dalek::{
+    constants,
+    ristretto::{CompressedRistretto, RistrettoPoint},
+    scalar::Scalar,
+};
+use rand_core::{CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt::Display,
+    ops::{DerefMut, Mul},
+    sync::Mutex,
 };
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";

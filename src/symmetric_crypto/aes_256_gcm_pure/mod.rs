@@ -1,11 +1,11 @@
-use std::{fmt::Display, vec::Vec};
+pub mod dem;
 
+use crate::{symmetric_crypto::SymmetricCrypto, Error};
 use aes_gcm::{
     aead::{generic_array::GenericArray, Aead, NewAead, Payload},
     AeadInPlace, Aes256Gcm,
 }; // Or `Aes128Gcm`
-
-use crate::{symmetric_crypto::SymmetricCrypto, Error};
+use std::{fmt::Display, vec::Vec};
 
 // This implements AES 256 GCM, using a pure rust interface
 // It will use the AES native interface on the CPU if available
