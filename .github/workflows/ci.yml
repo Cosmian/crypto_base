@@ -27,11 +27,6 @@ jobs:
         with:
           command: clippy
           args: --all-targets -- -D warnings
-      - name: Static analysis all features
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-targets --all-features -- -D warnings
 
   test:
     name: Test on ${{ matrix.os }}
