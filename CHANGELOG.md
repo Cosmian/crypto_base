@@ -6,7 +6,8 @@ All notable changes to this project will be documented in this file.
 ## [2.0.0] - 2022-06-21
 ### Added
 ### Changed
- - change error handling, using `thiserror` (for libs) instead of `eyre` (for apps)  
+ - change error handling, using `thiserror` (for libs) instead of `eyre` (for apps)
+ - moved to Rust 2021 edition  
 ### Fixed
 ### Removed
 ---
