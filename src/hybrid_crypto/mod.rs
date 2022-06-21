@@ -1,7 +1,7 @@
 use crate::{
     asymmetric::{ristretto::X25519Crypto, KeyPair},
     symmetric_crypto::aes_256_gcm_pure::Aes256GcmCrypto,
-    Error, KeyTrait,
+    CryptoBaseError, KeyTrait,
 };
 use rand_core::{CryptoRng, RngCore};
 
@@ -27,7 +27,7 @@ pub trait HybridCrypto<T: Kem, U: Dem> {
         pk: &<T::KeyPair as KeyPair>::PublicKey,
         additional_data: Option<&[u8]>,
         message: &[u8],
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         let (secret_key, mut asymmetric_encapsulation) = T::encaps(rng, pk, U::Key::LENGTH)?;
         let mut symmetric_encapsulation = U::encaps(rng, &secret_key, additional_data, message)?;
         // allocate the correct number of bytes for the ciphertext
@@ -42,9 +42,9 @@ pub trait HybridCrypto<T: Kem, U: Dem> {
         sk: &<T::KeyPair as KeyPair>::PrivateKey,
         additional_data: Option<&[u8]>,
         ciphertext: &[u8],
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         if ciphertext.len() < T::ENCAPSULATION_SIZE {
-            return Err(Error::InvalidSize(format!(
+            return Err(CryptoBaseError::InvalidSize(format!(
                 "decrypt: ciphertext has size: {}, it should be at least: {}",
                 ciphertext.len(),
                 T::ENCAPSULATION_SIZE
@@ -60,5 +60,4 @@ pub trait HybridCrypto<T: Kem, U: Dem> {
 }
 
 struct HcX25519AesCrypto;
-
 impl HybridCrypto<X25519Crypto, Aes256GcmCrypto> for HcX25519AesCrypto {}

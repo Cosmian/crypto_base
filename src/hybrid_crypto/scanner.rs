@@ -1,3 +1,4 @@
+use crate::CryptoBaseError;
 use std::convert::TryInto;
 
 /// Scans a slice sequentially, updating the cursor position on the fly
@@ -14,14 +15,13 @@ impl<'a> BytesScanner<'a> {
 
     /// Returns a slice of the next `size` bytes or an error if less is
     /// available
-    pub fn next(&mut self, size: usize) -> anyhow::Result<&'a [u8]> {
+    pub fn next(&mut self, size: usize) -> Result<&'a [u8], CryptoBaseError> {
         let end = self.start + size;
         if self.bytes.len() < end {
-            anyhow::bail!(
-                "Invalid size: {}, only {} bytes available",
-                size,
+            return Err(CryptoBaseError::InvalidSize(format!(
+                "{size}, only {} bytes available",
                 self.bytes.len() - self.start
-            );
+            )));
         }
         let chunk = &self.bytes[self.start..end];
         self.start = end;
@@ -29,12 +29,10 @@ impl<'a> BytesScanner<'a> {
     }
 
     /// Read the next 4 big endian bytes to return an u32
-    pub fn read_u32(&mut self) -> anyhow::Result<u32> {
-        Ok(u32::from_be_bytes(
-            self.next(4)?
-                .try_into()
-                .map_err(|_e| anyhow::anyhow!("invalid u32"))?,
-        ))
+    pub fn read_u32(&mut self) -> Result<u32, CryptoBaseError> {
+        Ok(u32::from_be_bytes(self.next(4)?.try_into().map_err(
+            |_e| CryptoBaseError::ConversionError("invalid u32".to_string()),
+        )?))
     }
 
     /// Returns the remainder of the slice

@@ -1,4 +1,4 @@
-use crate::{asymmetric::KeyPair, Error, KeyTrait};
+use crate::{asymmetric::KeyPair, CryptoBaseError, KeyTrait};
 use rand_core::{CryptoRng, RngCore};
 
 /// Key Encapsulation Method (KEM). It is used to generate a secret key along
@@ -27,7 +27,7 @@ pub trait Kem {
         rng: &mut R,
         pk: &<Self::KeyPair as KeyPair>::PublicKey,
         secret_key_length: usize,
-    ) -> Result<(Vec<u8>, Vec<u8>), Error>;
+    ) -> Result<(Vec<u8>, Vec<u8>), CryptoBaseError>;
 
     /// Generate the secret key from the given encapsulation and private key.
     ///
@@ -38,5 +38,5 @@ pub trait Kem {
         sk: &<Self::KeyPair as KeyPair>::PrivateKey,
         encapsulation: &[u8],
         secret_key_length: usize,
-    ) -> Result<Vec<u8>, Error>;
+    ) -> Result<Vec<u8>, CryptoBaseError>;
 }

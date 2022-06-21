@@ -5,7 +5,7 @@ use crate::{
         crypto_aead_xchacha20poly1305_ietf_encrypt, sodium_init,
     },
     symmetric_crypto::{SymmetricCrypto, MIN_DATA_LENGTH},
-    Error,
+    CryptoBaseError,
 };
 use std::sync::Once;
 use std::vec::Vec;
@@ -20,7 +20,7 @@ pub type Key = crate::symmetric_crypto::key::Key<KEY_LENGTH>;
 pub type Nonce = crate::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
 
 #[derive(Debug, PartialEq)]
-pub struct XChacha20Crypto {}
+pub struct XChacha20Crypto;
 
 impl SymmetricCrypto for XChacha20Crypto {
     type Key = Key;
@@ -42,7 +42,7 @@ impl SymmetricCrypto for XChacha20Crypto {
         bytes: &[u8],
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         START.call_once(|| unsafe {
             sodium_init();
         });
@@ -51,18 +51,18 @@ impl SymmetricCrypto for XChacha20Crypto {
             return Ok(vec![]);
         }
         if bytes.len() < MAC_LENGTH + MIN_DATA_LENGTH {
-            return Err(Error::DecryptionError(
-                "decryption failed - data too short".to_string(),
+            return Err(CryptoBaseError::DecryptionError(
+                "Not enough data for XChaCha20 decryption".to_string(),
             ));
         }
         let clear_text_length = bytes.len() - MAC_LENGTH;
-        let mut result: Vec<u8> = vec![0; clear_text_length];
-        if unsafe {
+        let mut result = vec![0; clear_text_length];
+        unsafe {
             let (ad, ad_len) = match additional_data {
                 Some(b) => (b.as_ptr(), b.len() as u64),
                 None => (std::ptr::null(), 0_u64),
             };
-            crypto_aead_xchacha20poly1305_ietf_decrypt(
+            let res = crypto_aead_xchacha20poly1305_ietf_decrypt(
                 result.as_mut_ptr(),
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
@@ -72,10 +72,12 @@ impl SymmetricCrypto for XChacha20Crypto {
                 ad_len,
                 nonce.0.as_ref().as_ptr(),
                 key.0.as_ptr(),
-            )
-        } != 0
-        {
-            return Err(Error::DecryptionError("decryption failed".to_string()));
+            );
+            if res != 0 {
+                return Err(CryptoBaseError::DecryptionError(
+                    "XChaCha20 decryption failed".to_string(),
+                ));
+            }
         }
         Ok(result)
     }
@@ -85,7 +87,7 @@ impl SymmetricCrypto for XChacha20Crypto {
         bytes: &[u8],
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         START.call_once(|| unsafe {
             sodium_init();
         });
@@ -97,7 +99,7 @@ impl SymmetricCrypto for XChacha20Crypto {
         let cipher_length = bytes.len() + MAC_LENGTH;
         let mut result: Vec<u8> = vec![0; cipher_length];
         unsafe {
-            if crypto_aead_xchacha20poly1305_ietf_encrypt(
+            let res = crypto_aead_xchacha20poly1305_ietf_encrypt(
                 result.as_mut_ptr(),
                 std::ptr::null_mut(),
                 bytes.as_ptr(),
@@ -107,9 +109,11 @@ impl SymmetricCrypto for XChacha20Crypto {
                 std::ptr::null(),
                 nonce.0.as_ref().as_ptr(),
                 key.0.as_ptr(),
-            ) != 0
-            {
-                return Err(Error::EncryptionError("encryption failed".to_string()));
+            );
+            if res != 0 {
+                return Err(CryptoBaseError::EncryptionError(
+                    "XChaCha20 encryption failed".to_string(),
+                ));
             };
         }
         Ok(result)

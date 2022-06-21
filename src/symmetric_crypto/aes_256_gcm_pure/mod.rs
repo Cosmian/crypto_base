@@ -1,6 +1,6 @@
 pub mod dem;
 
-use crate::{symmetric_crypto::SymmetricCrypto, Error};
+use crate::{symmetric_crypto::SymmetricCrypto, CryptoBaseError};
 use aes_gcm::{
     aead::{generic_array::GenericArray, Aead, NewAead, Payload},
     AeadInPlace, Aes256Gcm,
@@ -53,7 +53,7 @@ impl SymmetricCrypto for Aes256GcmCrypto {
         bytes: &[u8],
         nonce: &Self::Nonce,
         additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         encrypt_combined(key, bytes, nonce, additional_data)
     }
 
@@ -62,7 +62,7 @@ impl SymmetricCrypto for Aes256GcmCrypto {
         bytes: &[u8],
         nonce: &Self::Nonce,
         additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         decrypt_combined(key, bytes, nonce, additional_data)
     }
 }
@@ -77,7 +77,7 @@ pub fn encrypt_combined(
     bytes: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>, CryptoBaseError> {
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&key.0));
     let payload = if let Some(aad) = additional_data {
         Payload { msg: bytes, aad }
@@ -86,7 +86,7 @@ pub fn encrypt_combined(
     };
     cipher
         .encrypt(GenericArray::from_slice(&nonce.0), payload)
-        .map_err(|e| Error::EncryptionError(e.to_string()))
+        .map_err(|e| CryptoBaseError::EncryptionError(e.to_string()))
 }
 
 /// Encrypts a message in place using a secret key and a public nonce in
@@ -99,12 +99,12 @@ pub fn encrypt_in_place_detached(
     bytes: &mut [u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>, CryptoBaseError> {
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&key.0));
     let additional_data = additional_data.unwrap_or_default();
     cipher
         .encrypt_in_place_detached(GenericArray::from_slice(&nonce.0), additional_data, bytes)
-        .map_err(|e| Error::DecryptionError(e.to_string()))
+        .map_err(|e| CryptoBaseError::DecryptionError(e.to_string()))
         .map(|t| t.to_vec())
 }
 
@@ -119,7 +119,7 @@ pub fn decrypt_combined(
     bytes: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>, CryptoBaseError> {
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&key.0));
     let payload = if let Some(aad) = additional_data {
         Payload { msg: bytes, aad }
@@ -128,7 +128,7 @@ pub fn decrypt_combined(
     };
     cipher
         .decrypt(GenericArray::from_slice(&nonce.0), payload)
-        .map_err(|e| Error::DecryptionError(e.to_string()))
+        .map_err(|e| CryptoBaseError::DecryptionError(e.to_string()))
 }
 
 /// Decrypts a message in pace in detached mode.
@@ -144,7 +144,7 @@ pub fn decrypt_in_place_detached(
     tag: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> Result<(), Error> {
+) -> Result<(), CryptoBaseError> {
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&key.0));
     let additional_data = additional_data.unwrap_or_default();
     cipher
@@ -154,14 +154,23 @@ pub fn decrypt_in_place_detached(
             bytes,
             GenericArray::from_slice(tag),
         )
-        .map_err(|e| Error::DecryptionError(e.to_string()))
+        .map_err(|e| CryptoBaseError::DecryptionError(e.to_string()))
 }
 
 #[cfg(test)]
 mod tests {
 
-    use super::*;
-    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait};
+    use crate::{
+        entropy::CsRng,
+        symmetric_crypto::{
+            aes_256_gcm_pure::{
+                decrypt_combined, decrypt_in_place_detached, encrypt_combined,
+                encrypt_in_place_detached, Key, Nonce, KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH,
+            },
+            nonce::NonceTrait,
+        },
+        CryptoBaseError,
+    };
 
     #[test]
     fn test_key() {
@@ -195,7 +204,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encryption_decryption_combined() -> anyhow::Result<()> {
+    fn test_encryption_decryption_combined() -> Result<(), CryptoBaseError> {
         let mut cs_rng = CsRng::new();
         let key = Key::new(&mut cs_rng);
         let bytes = cs_rng.generate_random_bytes(8192);
@@ -217,7 +226,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encryption_decryption_detached() -> anyhow::Result<()> {
+    fn test_encryption_decryption_detached() -> Result<(), CryptoBaseError> {
         let mut cs_rng = CsRng::new();
         let key = Key::new(&mut cs_rng);
         let bytes = cs_rng.generate_random_bytes(8192);

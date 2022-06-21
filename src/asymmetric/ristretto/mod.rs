@@ -9,7 +9,7 @@ use crate::{
         nonce::NonceTrait,
         SymmetricCrypto,
     },
-    Error, KeyTrait,
+    CryptoBaseError, KeyTrait,
 };
 use curve25519_dalek::{
     constants,
@@ -51,13 +51,13 @@ impl KeyTrait for X25519PrivateKey {
         self.as_bytes().to_vec()
     }
 
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error> {
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, CryptoBaseError> {
         Self::try_from(bytes)
     }
 }
 
 impl TryFrom<Vec<u8>> for X25519PrivateKey {
-    type Error = Error;
+    type Error = CryptoBaseError;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
         Self::try_from(bytes.as_slice())
@@ -65,16 +65,18 @@ impl TryFrom<Vec<u8>> for X25519PrivateKey {
 }
 
 impl TryFrom<&[u8]> for X25519PrivateKey {
-    type Error = Error;
+    type Error = CryptoBaseError;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         let len = bytes.len();
-        let bytes: [u8; <Self>::LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
+        let bytes: [u8; <Self>::LENGTH] = bytes.try_into().map_err(|_| Self::Error::SizeError {
             given: len,
             expected: <Self>::LENGTH,
         })?;
         let scalar = Scalar::from_canonical_bytes(bytes).ok_or_else(|| {
-            Error::ConversionError("Given bytes do not represent a cannonical Scalar!".to_string())
+            Self::Error::ConversionError(
+                "Given bytes do not represent a cannonical Scalar!".to_string(),
+            )
         })?;
         Ok(X25519PrivateKey(scalar))
     }
@@ -88,7 +90,7 @@ impl From<X25519PrivateKey> for Vec<u8> {
 
 /// Parse from an hex encoded String
 impl TryFrom<&str> for X25519PrivateKey {
-    type Error = Error;
+    type Error = CryptoBaseError;
 
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
         let bytes = hex::decode(value)?;
@@ -122,7 +124,7 @@ impl KeyTrait for X25519PublicKey {
         self.0.compress().to_bytes().to_vec()
     }
 
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error> {
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, CryptoBaseError> {
         Self::try_from(bytes)
     }
 }
@@ -134,7 +136,7 @@ impl From<&X25519PrivateKey> for X25519PublicKey {
 }
 
 impl TryFrom<Vec<u8>> for X25519PublicKey {
-    type Error = Error;
+    type Error = CryptoBaseError;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
         Self::try_from(bytes.as_slice())
@@ -142,19 +144,19 @@ impl TryFrom<Vec<u8>> for X25519PublicKey {
 }
 
 impl TryFrom<&[u8]> for X25519PublicKey {
-    type Error = Error;
+    type Error = CryptoBaseError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let len = value.len();
         if len != <X25519PublicKey>::LENGTH {
-            return Err(Error::SizeError {
+            return Err(Self::Error::SizeError {
                 given: len,
                 expected: <X25519PublicKey>::LENGTH,
             });
         };
         let compressed = CompressedRistretto::from_slice(value);
         let point = compressed.decompress().ok_or_else(|| {
-            Error::ConversionError(
+            Self::Error::ConversionError(
                 "Cannot decompress given bytes into a valid curve point!".to_string(),
             )
         })?;
@@ -170,7 +172,7 @@ impl From<X25519PublicKey> for Vec<u8> {
 
 /// Parse from an hex encoded String
 impl TryFrom<&str> for X25519PublicKey {
-    type Error = Error;
+    type Error = CryptoBaseError;
 
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
         let bytes = hex::decode(value)?;
@@ -241,7 +243,7 @@ impl Into<Vec<u8>> for X25519KeyPair {
 }
 
 impl TryFrom<Vec<u8>> for X25519KeyPair {
-    type Error = Error;
+    type Error = CryptoBaseError;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
         Self::try_from(bytes.as_slice())
@@ -249,12 +251,12 @@ impl TryFrom<Vec<u8>> for X25519KeyPair {
 }
 
 impl TryFrom<&[u8]> for X25519KeyPair {
-    type Error = Error;
+    type Error = CryptoBaseError;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         let len = <Self as KeyPair>::PrivateKey::LENGTH + <Self as KeyPair>::PublicKey::LENGTH;
         if len != bytes.len() {
-            return Err(Error::SizeError {
+            return Err(Self::Error::SizeError {
                 given: bytes.len(),
                 expected: len,
             });
@@ -313,7 +315,7 @@ impl X25519Crypto {
     pub fn sym_key_from_public_key(
         ephemeral_keypair: &X25519KeyPair, // (y, gʸ)
         public_key: &X25519PublicKey,      // gˣ
-    ) -> Result<[u8; 32], Error> {
+    ) -> Result<[u8; 32], CryptoBaseError> {
         //calculate the shared point: (gˣ)ʸ
         let point = public_key.0 * ephemeral_keypair.private_key.0;
         // create a 64 bytes master key using gʸ and the shared point
@@ -331,7 +333,7 @@ impl X25519Crypto {
     pub fn sym_key_from_private_key(
         ephemeral_public_key: &X25519PublicKey, // gʸ
         private_key: &X25519PrivateKey,         // x
-    ) -> Result<[u8; 32], Error> {
+    ) -> Result<[u8; 32], CryptoBaseError> {
         //calculate the shared point: (gʸ)ˣ
         let point = private_key.0 * ephemeral_public_key.0;
         // create a 64 bytes master key using gʸ and the shared point
@@ -368,7 +370,7 @@ impl AsymmetricCrypto for X25519Crypto {
     fn generate_private_key(
         &self,
         _: Option<&Self::PrivateKeyGenerationParameters>,
-    ) -> Result<<Self::KeyPair as KeyPair>::PrivateKey, Error> {
+    ) -> Result<<Self::KeyPair as KeyPair>::PrivateKey, CryptoBaseError> {
         Ok(X25519PrivateKey::new(
             &mut self.rng.lock().expect("a lock failed").deref_mut(),
         ))
@@ -378,7 +380,7 @@ impl AsymmetricCrypto for X25519Crypto {
     fn generate_key_pair(
         &self,
         _: Option<&Self::KeyPairGenerationParameters>,
-    ) -> Result<Self::KeyPair, Error> {
+    ) -> Result<Self::KeyPair, CryptoBaseError> {
         Ok(X25519KeyPair::new(
             &mut self.rng.lock().expect("a lock failed").deref_mut(),
         ))
@@ -390,7 +392,7 @@ impl AsymmetricCrypto for X25519Crypto {
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
         _: Option<&Self::EncryptionParameters>,
-    ) -> Result<(S::Key, Vec<u8>), Error> {
+    ) -> Result<(S::Key, Vec<u8>), CryptoBaseError> {
         let bytes: Vec<u8> = self.generate_random_bytes(S::Key::LENGTH);
         let symmetric_key = S::Key::try_from_bytes(bytes)?;
         let encrypted_key = self.encrypt(public_key, None, &symmetric_key.to_bytes())?;
@@ -402,10 +404,10 @@ impl AsymmetricCrypto for X25519Crypto {
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         data: &[u8],
-    ) -> Result<S::Key, Error> {
+    ) -> Result<S::Key, CryptoBaseError> {
         S::Key::try_from_bytes(
             self.decrypt(private_key, data)
-                .map_err(|err| Error::DecryptionError(err.to_string()))?,
+                .map_err(|err| CryptoBaseError::DecryptionError(err.to_string()))?,
         )
     }
 
@@ -430,7 +432,7 @@ impl AsymmetricCrypto for X25519Crypto {
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
         _: Option<&Self::EncryptionParameters>,
         data: &[u8],
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         let ephemeral_keypair =
             X25519KeyPair::new(&mut self.rng.lock().expect("a lock failed").deref_mut());
         let sym_key_bytes = Self::sym_key_from_public_key(&ephemeral_keypair, public_key)?;
@@ -461,9 +463,9 @@ impl AsymmetricCrypto for X25519Crypto {
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         data: &[u8],
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         if data.len() < <Self>::ENCRYPTION_OVERHEAD {
-            return Err(Error::InvalidSize(
+            return Err(CryptoBaseError::InvalidSize(
                 "decryption failed: message is too short".to_string(),
             ));
         }
@@ -576,7 +578,7 @@ mod test {
             &key_pair.private_key,
             &enc_sym_key,
         );
-        println!("decrypted_key: {:?}", decrypted_key);
+        // println!("decrypted_key: {:?}", decrypted_key);
         assert_eq!(sym_key, decrypted_key.unwrap());
     }
 }

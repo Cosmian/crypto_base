@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [2.0.0] - 2022-06-21
+### Added
+### Changed
+ - change error handling, using `thiserror` (for libs) instead of `eyre` (for apps)  
+### Fixed
+### Removed
+---
+
+---
 ## [1.3.0] - 2022-05-31
 ### Added
 - de-hardcoded secret key length in KEM

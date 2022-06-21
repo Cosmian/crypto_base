@@ -1,4 +1,4 @@
-use crate::{Error, KeyTrait};
+use crate::{CryptoBaseError, KeyTrait};
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -31,7 +31,7 @@ impl<const KEY_LENGTH: usize> KeyTrait for Key<KEY_LENGTH> {
         self.as_bytes().to_vec()
     }
 
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error> {
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, CryptoBaseError> {
         Self::try_from(bytes)
     }
 }
@@ -43,7 +43,7 @@ impl<const KEY_LENGTH: usize> From<&Key<KEY_LENGTH>> for Vec<u8> {
 }
 
 impl<const KEY_LENGTH: usize> TryFrom<Vec<u8>> for Key<KEY_LENGTH> {
-    type Error = Error;
+    type Error = CryptoBaseError;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
         Self::try_from(bytes.as_slice())
@@ -57,10 +57,10 @@ impl<const KEY_LENGTH: usize> From<Key<KEY_LENGTH>> for Vec<u8> {
 }
 
 impl<'a, const KEY_LENGTH: usize> TryFrom<&'a [u8]> for Key<KEY_LENGTH> {
-    type Error = Error;
+    type Error = CryptoBaseError;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| Error::SizeError {
+        let b: [u8; KEY_LENGTH] = bytes.try_into().map_err(|_| Self::Error::SizeError {
             given: bytes.len(),
             expected: KEY_LENGTH,
         })?;

@@ -1,16 +1,21 @@
+use crate::CryptoBaseError;
+
 /// The ten least positive integers k such that 2ⁿ-k is a prime.
 /// In each case these are proven primes (proven using UBASIC's  APRT-CL).
 ///
 /// Note that 2n-k will be an n bit number (for these k's).
 /// see https://primes.utm.edu/lists/2small/0bit.html
-pub fn closest_primes_to_power_of_2(n: usize) -> anyhow::Result<[u32; 10]> {
-    anyhow::ensure!(n >= 2, "The minimum number of bits is 2, but got {}", n);
-
-    anyhow::ensure!(
-        n <= 400,
-        "The maximum prime handled is 2^400 - 593, but got {}",
-        n
-    );
+pub fn closest_primes_to_power_of_2(n: usize) -> Result<[u32; 10], CryptoBaseError> {
+    if n < 2 {
+        return Err(CryptoBaseError::InvalidSize(format!(
+            "The minimum number of bits is 2, but got {n}"
+        )));
+    }
+    if n > 400 {
+        return Err(CryptoBaseError::InvalidSize(format!(
+            "The maximum prime handled is 2^400 - 593, but got {n}"
+        )));
+    }
 
     Ok(match n {
         2 => [1, 2, 2, 2, 2, 2, 2, 2, 2, 2],

@@ -2,7 +2,7 @@ use rand_core::{CryptoRng, RngCore};
 
 use crate::{
     symmetric_crypto::{nonce::NonceTrait, SymmetricCrypto},
-    Error,
+    CryptoBaseError,
 };
 
 /// A block holds clear text data that needs to be encrypted.
@@ -39,7 +39,7 @@ where
         }
     }
 
-    // Parses a block of encrypted data to a `Block`.
+    /// Parses a block of encrypted data to a `Block`.
     /// The resource `uid` and `block_number` are part of the
     /// authentication scheme amd must be re-supplied with the
     /// same values use to encrypt the block
@@ -48,16 +48,16 @@ where
         symmetric_key: &<S as SymmetricCrypto>::Key,
         uid: &[u8],
         block_number: usize,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, CryptoBaseError> {
         // The block header is always present
         if encrypted_bytes.len() < Self::ENCRYPTION_OVERHEAD {
-            return Err(Error::InvalidSize(format!(
+            return Err(CryptoBaseError::InvalidSize(format!(
                 "array of encrypted data bytes of length {} is too small",
                 encrypted_bytes.len(),
             )));
         }
         if encrypted_bytes.len() > Self::MAX_ENCRYPTED_LENGTH {
-            return Err(Error::InvalidSize(format!(
+            return Err(CryptoBaseError::InvalidSize(format!(
                 "array of encrypted data bytes of length {} is too large",
                 encrypted_bytes.len(),
             )));
@@ -93,7 +93,7 @@ where
         symmetric_key: &<S as SymmetricCrypto>::Key,
         uid: &[u8],
         block_number: usize,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         // refresh the nonce
         let nonce = S::Nonce::new(rng);
         let mut ad = uid.to_vec();
@@ -133,9 +133,9 @@ where
     /// block.
     ///
     /// Returns the length of the data written
-    pub fn write(&mut self, start_offset: usize, data: &[u8]) -> Result<usize, Error> {
+    pub fn write(&mut self, start_offset: usize, data: &[u8]) -> Result<usize, CryptoBaseError> {
         if start_offset >= MAX_CLEAR_TEXT_LENGTH {
-            return Err(Error::InvalidSize(format!(
+            return Err(CryptoBaseError::InvalidSize(format!(
                 "write in block: start offset: {} is greater than max block clear text len {}",
                 start_offset, MAX_CLEAR_TEXT_LENGTH
             )));
@@ -183,9 +183,9 @@ where
 {
     pub const LENGTH: usize = <S as SymmetricCrypto>::Nonce::LENGTH;
 
-    pub fn parse(bytes: &[u8]) -> Result<Self, Error> {
+    pub fn parse(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
         if bytes.len() != Self::LENGTH {
-            return Err(Error::SizeError {
+            return Err(CryptoBaseError::SizeError {
                 given: bytes.len(),
                 expected: Self::LENGTH,
             });
@@ -217,7 +217,7 @@ mod tests {
     type Bl = Block<Aes256GcmCrypto, MAX_CLEAR_TEXT_LENGTH>;
 
     #[test]
-    fn test_empty_block() -> anyhow::Result<()> {
+    fn test_empty_block() {
         let b = Bl::new();
         assert!(b.clear_text().is_empty());
 
@@ -225,15 +225,17 @@ mod tests {
         let symmetric_key = Key::new(&mut cs_rng);
         let uid = [1_u8; 32];
         // let iv = cs_rng.generate_nonce();
-        let encrypted_bytes = b.to_encrypted_bytes(&mut cs_rng, &symmetric_key, &uid, 1)?;
+        let encrypted_bytes = b
+            .to_encrypted_bytes(&mut cs_rng, &symmetric_key, &uid, 1)
+            .expect("failed to encrypted bytes");
         assert_eq!(Bl::ENCRYPTION_OVERHEAD, encrypted_bytes.len());
-        let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)?;
+        let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)
+            .expect("failed from encrypted bytes");
         assert!(c.clear_text().is_empty());
-        Ok(())
     }
 
     #[test]
-    fn test_full_block() -> anyhow::Result<()> {
+    fn test_full_block() {
         let mut cs_rng = CsRng::new();
         let symmetric_key = Key::new(&mut cs_rng);
         let uid = [1_u8; 32];
@@ -241,11 +243,13 @@ mod tests {
         let mut b = Bl::new();
         assert!(b.clear_text().is_empty());
         let data = cs_rng.generate_random_bytes(16384);
-        let written = b.write(0, &data)?;
+        let written = b.write(0, &data).expect("failed writing data");
         assert_eq!(MAX_CLEAR_TEXT_LENGTH, written);
 
         // let iv = cs_rng.generate_nonce();
-        let encrypted_bytes = b.to_encrypted_bytes(&mut cs_rng, &symmetric_key, &uid, 1)?;
+        let encrypted_bytes = b
+            .to_encrypted_bytes(&mut cs_rng, &symmetric_key, &uid, 1)
+            .expect("failed to encrypted bytes");
         assert_eq!(
             Bl::ENCRYPTION_OVERHEAD + MAX_CLEAR_TEXT_LENGTH,
             encrypted_bytes.len()
@@ -254,13 +258,13 @@ mod tests {
             Bl::ENCRYPTION_OVERHEAD + MAX_CLEAR_TEXT_LENGTH,
             Bl::MAX_ENCRYPTED_LENGTH
         );
-        let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)?;
+        let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)
+            .expect("failed from encrypted bytes");
         assert_eq!(&data[0..MAX_CLEAR_TEXT_LENGTH], c.clear_text());
-        Ok(())
     }
 
     #[test]
-    fn test_partial_block() -> anyhow::Result<()> {
+    fn test_partial_block() {
         let mut cs_rng = CsRng::new();
         let symmetric_key = Key::new(&mut cs_rng);
         let uid = [1_u8; 32];
@@ -269,23 +273,25 @@ mod tests {
         assert!(b.clear_text().is_empty());
 
         let data1 = cs_rng.generate_random_bytes(100);
-        let written = b.write(0, &data1)?;
+        let written = b.write(0, &data1).expect("failed writing data");
         assert_eq!(100, written);
 
         let data2 = cs_rng.generate_random_bytes(100);
-        let written = b.write(200, &data2)?;
+        let written = b.write(200, &data2).expect("failed writing data");
         assert_eq!(100, written);
 
         // let iv = cs_rng.generate_nonce();
-        let encrypted_bytes = b.to_encrypted_bytes(&mut cs_rng, &symmetric_key, &uid, 1)?;
+        let encrypted_bytes = b
+            .to_encrypted_bytes(&mut cs_rng, &symmetric_key, &uid, 1)
+            .expect("failed to encrypted bytes");
         assert_eq!(300 + Bl::ENCRYPTION_OVERHEAD, encrypted_bytes.len());
-        let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)?;
+        let c = Bl::from_encrypted_bytes(&encrypted_bytes, &symmetric_key, &uid, 1)
+            .expect("failed from encrypted bytes");
         let mut data: Vec<u8> = vec![];
         data.extend(&data1);
         data.extend(&[0_u8; 100]);
         data.extend(&data2);
 
         assert_eq!(&data, c.clear_text());
-        Ok(())
     }
 }
