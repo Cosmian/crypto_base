@@ -51,8 +51,8 @@ impl AesMmo {
     }
 
     #[must_use]
-    pub fn new(seed: &[u8; 32]) -> AesMmo {
-        AesMmo {
+    pub const fn new(seed: &[u8; 32]) -> Self {
+        Self {
             hash: *seed,
             block: [0_u8; 32],
             block_offset: 0,
@@ -101,7 +101,7 @@ impl AesMmo {
     /// It will handle hasher creation, data feeding and finalization.
     #[must_use]
     pub fn digest(seed: &[u8; 32], data: &[u8]) -> [u8; 32] {
-        let mut hasher = AesMmo::new(seed);
+        let mut hasher = Self::new(seed);
         hasher.update(data);
         hasher.finalize()
     }
@@ -110,7 +110,7 @@ impl AesMmo {
     /// It will handle hasher creation, data feeding and finalization.
     #[must_use]
     pub fn digest2(seed: &[u8; 32], data: &[u8]) -> ([u8; 32], [u8; 32]) {
-        let mut hasher = AesMmo::new(seed);
+        let mut hasher = Self::new(seed);
         hasher.update(data);
         let first_hash = hasher.finalize();
         let mut second_hash = first_hash;
@@ -129,7 +129,7 @@ pub(crate) mod tests {
 
     use super::{super::sodium_bindings, AesMmo};
 
-    pub(crate) fn blake2b(seed: &[u8; 32], data: &[u8]) -> [u8; 32] {
+    pub fn blake2b(seed: &[u8; 32], data: &[u8]) -> [u8; 32] {
         let mut h = [0_u8; 32];
         unsafe {
             sodium_bindings::crypto_generichash_blake2b(

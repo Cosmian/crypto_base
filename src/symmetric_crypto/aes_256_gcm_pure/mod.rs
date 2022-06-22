@@ -21,7 +21,7 @@ pub struct Aes256GcmCrypto;
 
 impl Display for Aes256GcmCrypto {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Aes256GcmCrypto::description())
+        write!(f, "{}", Self::description())
     }
 }
 
@@ -79,11 +79,8 @@ pub fn encrypt_combined(
     additional_data: Option<&[u8]>,
 ) -> Result<Vec<u8>, CryptoBaseError> {
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&key.0));
-    let payload = if let Some(aad) = additional_data {
-        Payload { msg: bytes, aad }
-    } else {
-        Payload::from(bytes)
-    };
+    let payload =
+        additional_data.map_or_else(|| Payload::from(bytes), |aad| Payload { msg: bytes, aad });
     cipher
         .encrypt(GenericArray::from_slice(&nonce.0), payload)
         .map_err(|e| CryptoBaseError::EncryptionError(e.to_string()))
@@ -121,11 +118,8 @@ pub fn decrypt_combined(
     additional_data: Option<&[u8]>,
 ) -> Result<Vec<u8>, CryptoBaseError> {
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&key.0));
-    let payload = if let Some(aad) = additional_data {
-        Payload { msg: bytes, aad }
-    } else {
-        Payload::from(bytes)
-    };
+    let payload =
+        additional_data.map_or_else(|| Payload::from(bytes), |aad| Payload { msg: bytes, aad });
     cipher
         .decrypt(GenericArray::from_slice(&nonce.0), payload)
         .map_err(|e| CryptoBaseError::DecryptionError(e.to_string()))

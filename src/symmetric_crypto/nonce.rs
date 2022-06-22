@@ -19,7 +19,7 @@ pub trait NonceTrait: Sized + Clone {
     fn to_bytes(&self) -> &[u8];
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Nonce<const NONCE_LENGTH: usize>(pub [u8; NONCE_LENGTH]);
 
 impl<const NONCE_LENGTH: usize> NonceTrait for Nonce<NONCE_LENGTH> {
@@ -45,7 +45,7 @@ impl<const NONCE_LENGTH: usize> NonceTrait for Nonce<NONCE_LENGTH> {
         bi += BigUint::from(increment);
         let mut bi_bytes = bi.to_bytes_le();
         bi_bytes.resize(NONCE_LENGTH, 0);
-        Nonce(bi_bytes.try_into().expect("This should never happen"))
+        Self(bi_bytes.try_into().expect("This should never happen"))
     }
 
     fn xor(&self, b2: &[u8]) -> Self {
@@ -53,7 +53,7 @@ impl<const NONCE_LENGTH: usize> NonceTrait for Nonce<NONCE_LENGTH> {
         for i in 0..min(b2.len(), NONCE_LENGTH) {
             n[i] ^= b2[i];
         }
-        Nonce(n)
+        Self(n)
     }
 
     fn to_bytes(&self) -> &[u8] {
@@ -84,7 +84,7 @@ impl<const NONCE_LENGTH: usize> From<[u8; NONCE_LENGTH]> for Nonce<NONCE_LENGTH>
 }
 
 impl<const NONCE_LENGTH: usize> From<Nonce<NONCE_LENGTH>> for Vec<u8> {
-    fn from(n: Nonce<NONCE_LENGTH>) -> Vec<u8> {
+    fn from(n: Nonce<NONCE_LENGTH>) -> Self {
         n.0.to_vec()
     }
 }

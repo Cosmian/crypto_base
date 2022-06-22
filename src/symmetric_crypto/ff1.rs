@@ -22,7 +22,7 @@ pub struct FF1Crypto;
 
 impl Display for FF1Crypto {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", FF1Crypto::description())
+        write!(f, "{}", Self::description())
     }
 }
 

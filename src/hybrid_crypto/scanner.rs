@@ -9,7 +9,7 @@ pub struct BytesScanner<'a> {
 
 impl<'a> BytesScanner<'a> {
     #[must_use]
-    pub fn new(bytes: &'a [u8]) -> Self {
+    pub const fn new(bytes: &'a [u8]) -> Self {
         BytesScanner { bytes, start: 0 }
     }
 
@@ -47,7 +47,7 @@ impl<'a> BytesScanner<'a> {
     }
 
     /// Whether there are more bytes to read
-    pub fn has_more(&self) -> bool {
+    pub const fn has_more(&self) -> bool {
         self.start < self.bytes.len()
     }
 }

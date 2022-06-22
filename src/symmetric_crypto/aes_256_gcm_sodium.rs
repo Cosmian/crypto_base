@@ -279,7 +279,7 @@ pub fn decrypt_detached(
     Ok(result)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Aes256GcmCrypto;
 
 impl SymmetricCrypto for Aes256GcmCrypto {

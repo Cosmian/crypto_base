@@ -63,15 +63,15 @@ impl Trapdoor {
         self.clone().into()
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Trapdoor, CryptoBaseError> {
-        Trapdoor::try_from(bytes).map_err(CryptoBaseError::ConversionError)
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
+        Self::try_from(bytes).map_err(CryptoBaseError::ConversionError)
     }
 }
 
 /// Serialization of a Trapdoor into bytes
 impl From<Trapdoor> for Vec<u8> {
-    fn from(t: Trapdoor) -> Vec<u8> {
-        let mut b: Vec<u8> = Vec::with_capacity(4 + (1 + 32) * t.nodes.len());
+    fn from(t: Trapdoor) -> Self {
+        let mut b: Self = Self::with_capacity(4 + (1 + 32) * t.nodes.len());
         b.extend_from_slice(&(t.nodes.len() as u32).to_be_bytes());
         for n in t.nodes {
             b.push(n.level);
@@ -86,7 +86,7 @@ impl TryFrom<Vec<u8>> for Trapdoor {
     type Error = String;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        Trapdoor::try_from(value.as_slice())
+        Self::try_from(value.as_slice())
     }
 }
 
@@ -111,7 +111,7 @@ impl TryFrom<&[u8]> for Trapdoor {
                 k,
             })
         }
-        Ok(Trapdoor { nodes })
+        Ok(Self { nodes })
     }
 }
 
@@ -380,7 +380,7 @@ pub(crate) mod tests {
 
     impl CsRng {
         pub fn new() -> Self {
-            CsRng {
+            Self {
                 rng: Hc128Rng::from_entropy(),
             }
         }
@@ -394,7 +394,7 @@ pub(crate) mod tests {
 
     impl Default for CsRng {
         fn default() -> Self {
-            CsRng::new()
+            Self::new()
         }
     }
 

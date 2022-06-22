@@ -7,7 +7,7 @@ use std::{
     vec::Vec,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "Vec<u8>", into = "Vec<u8>")]
 pub struct Key<const KEY_LENGTH: usize>(pub [u8; KEY_LENGTH]);
 
@@ -19,7 +19,7 @@ impl<const KEY_LENGTH: usize> Key<KEY_LENGTH> {
         key
     }
 
-    fn as_bytes(&self) -> &[u8] {
+    const fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 }
@@ -37,7 +37,7 @@ impl<const KEY_LENGTH: usize> KeyTrait for Key<KEY_LENGTH> {
 }
 
 impl<const KEY_LENGTH: usize> From<&Key<KEY_LENGTH>> for Vec<u8> {
-    fn from(k: &Key<KEY_LENGTH>) -> Vec<u8> {
+    fn from(k: &Key<KEY_LENGTH>) -> Self {
         k.0.to_vec()
     }
 }

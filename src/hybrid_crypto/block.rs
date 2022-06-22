@@ -32,8 +32,8 @@ where
 
     // Create a new, empty block
     #[must_use]
-    pub fn new() -> Block<S, MAX_CLEAR_TEXT_LENGTH> {
-        Block {
+    pub fn new() -> Self {
+        Self {
             clear_text: vec![],
             phantom_data: std::marker::PhantomData::default(),
         }

@@ -27,14 +27,14 @@ use std::{
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(try_from = "Vec<u8>", into = "Vec<u8>")]
 pub struct X25519PrivateKey(Scalar);
 
 impl X25519PrivateKey {
     #[must_use]
     pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        X25519PrivateKey(Scalar::random(rng))
+        Self(Scalar::random(rng))
     }
 
     #[must_use]
@@ -78,7 +78,7 @@ impl TryFrom<&[u8]> for X25519PrivateKey {
                 "Given bytes do not represent a cannonical Scalar!".to_string(),
             )
         })?;
-        Ok(X25519PrivateKey(scalar))
+        Ok(Self(scalar))
     }
 }
 
@@ -94,7 +94,7 @@ impl TryFrom<&str> for X25519PrivateKey {
 
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
         let bytes = hex::decode(value)?;
-        X25519PrivateKey::try_from(bytes)
+        Self::try_from(bytes)
     }
 }
 
@@ -105,7 +105,7 @@ impl Display for X25519PrivateKey {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(try_from = "Vec<u8>", into = "Vec<u8>")]
 pub struct X25519PublicKey(RistrettoPoint);
 
@@ -131,7 +131,7 @@ impl KeyTrait for X25519PublicKey {
 
 impl From<&X25519PrivateKey> for X25519PublicKey {
     fn from(private_key: &X25519PrivateKey) -> Self {
-        X25519PublicKey(&private_key.0 * &constants::RISTRETTO_BASEPOINT_TABLE)
+        Self(&private_key.0 * &constants::RISTRETTO_BASEPOINT_TABLE)
     }
 }
 
@@ -148,10 +148,10 @@ impl TryFrom<&[u8]> for X25519PublicKey {
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let len = value.len();
-        if len != <X25519PublicKey>::LENGTH {
+        if len != <Self>::LENGTH {
             return Err(Self::Error::SizeError {
                 given: len,
-                expected: <X25519PublicKey>::LENGTH,
+                expected: <Self>::LENGTH,
             });
         };
         let compressed = CompressedRistretto::from_slice(value);
@@ -160,7 +160,7 @@ impl TryFrom<&[u8]> for X25519PublicKey {
                 "Cannot decompress given bytes into a valid curve point!".to_string(),
             )
         })?;
-        Ok(X25519PublicKey(point))
+        Ok(Self(point))
     }
 }
 
@@ -176,7 +176,7 @@ impl TryFrom<&str> for X25519PublicKey {
 
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
         let bytes = hex::decode(value)?;
-        X25519PublicKey::try_from(bytes.as_slice())
+        Self::try_from(bytes.as_slice())
     }
 }
 
@@ -196,14 +196,14 @@ impl<'a, 'b> Mul<&'a X25519PrivateKey> for &'b X25519PublicKey {
 }
 
 impl<'a> Mul<&'a X25519PrivateKey> for X25519PublicKey {
-    type Output = X25519PublicKey;
+    type Output = Self;
 
     fn mul(self, rhs: &'a X25519PrivateKey) -> Self::Output {
-        X25519PublicKey(self.0 * rhs.0)
+        Self(self.0 * rhs.0)
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct X25519KeyPair {
     private_key: X25519PrivateKey,
     public_key: X25519PublicKey,
@@ -213,7 +213,7 @@ impl X25519KeyPair {
     pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         let private_key = X25519PrivateKey::new(rng);
         let public_key = X25519PublicKey::from(&private_key);
-        X25519KeyPair {
+        Self {
             private_key,
             public_key,
         }
@@ -267,7 +267,7 @@ impl TryFrom<&[u8]> for X25519KeyPair {
         let public_key = <Self as KeyPair>::PublicKey::try_from(
             &bytes[<Self as KeyPair>::PrivateKey::LENGTH..],
         )?;
-        Ok(X25519KeyPair {
+        Ok(Self {
             private_key,
             public_key,
         })

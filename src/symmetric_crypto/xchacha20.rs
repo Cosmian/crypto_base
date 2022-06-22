@@ -19,7 +19,7 @@ pub const MAC_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_ABYTES as usize
 pub type Key = crate::symmetric_crypto::key::Key<KEY_LENGTH>;
 pub type Nonce = crate::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct XChacha20Crypto;
 
 impl SymmetricCrypto for XChacha20Crypto {

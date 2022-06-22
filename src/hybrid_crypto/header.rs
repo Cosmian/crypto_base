@@ -21,7 +21,7 @@ use crate::{
 ///
 /// The `additional_data` is not used as a security parameter. It is optional
 /// data (such as index tags) symmetrically encrypted as part of the header.
-#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, Serialize, Deserialize)]
 pub struct Metadata {
     pub uid: Vec<u8>,
     pub additional_data: Option<Vec<u8>>,
@@ -58,16 +58,16 @@ impl Metadata {
     }
 
     /// Decode the metadata from a byte array
-    pub fn from_bytes(bytes: &[u8]) -> Result<Metadata, CryptoBaseError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
         if bytes.is_empty() {
-            return Ok(Metadata::default());
+            return Ok(Self::default());
         }
         let mut scanner = BytesScanner::new(bytes);
         let uid_len = scanner.read_u32()? as usize;
         let uid = scanner.next(uid_len)?.to_vec();
         let additional_data = scanner.remainder().to_owned().map(|v| v.to_vec());
 
-        Ok(Metadata {
+        Ok(Self {
             uid,
             additional_data,
         })
@@ -107,7 +107,7 @@ where
         let asymmetric_scheme = A::default();
         let (symmetric_key, encrypted_symmetric_key) =
             asymmetric_scheme.generate_symmetric_key::<S>(public_key, encryption_parameters)?;
-        Ok(Header {
+        Ok(Self {
             asymmetric_scheme,
             metadata,
             symmetric_key,
@@ -152,7 +152,7 @@ where
             Metadata::default()
         };
 
-        Ok(Header {
+        Ok(Self {
             asymmetric_scheme,
             metadata,
             symmetric_key,
@@ -199,12 +199,12 @@ where
     }
 
     /// The clear text symmetric key generated in the header
-    pub fn symmetric_key(&self) -> &S::Key {
+    pub const fn symmetric_key(&self) -> &S::Key {
         &self.symmetric_key
     }
 
     /// The meta data in the header
-    pub fn meta_data(&self) -> &Metadata {
+    pub const fn meta_data(&self) -> &Metadata {
         &self.metadata
     }
 }

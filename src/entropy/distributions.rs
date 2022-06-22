@@ -14,8 +14,8 @@ impl Uniform {
     /// generator
     // based on HC128
     #[must_use]
-    pub fn new() -> Uniform {
-        Uniform {
+    pub fn new() -> Self {
+        Self {
             rng: Hc128Rng::from_entropy(),
         }
     }
@@ -52,7 +52,7 @@ impl Uniform {
 
 impl Default for Uniform {
     fn default() -> Self {
-        Uniform {
+        Self {
             rng: Hc128Rng::from_entropy(),
         }
     }
@@ -76,8 +76,8 @@ impl Normal {
     /// generator
     // based on ChaCha20
     #[must_use]
-    pub fn new(mean: &BigInt, std_dev: &BigUint) -> Normal {
-        Normal {
+    pub fn new(mean: &BigInt, std_dev: &BigUint) -> Self {
+        Self {
             rng: Hc128Rng::from_entropy(),
             mean: mean.clone(),
             std_dev: std_dev.clone().into(),
