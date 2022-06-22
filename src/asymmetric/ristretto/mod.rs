@@ -578,7 +578,6 @@ mod test {
             &key_pair.private_key,
             &enc_sym_key,
         );
-        // println!("decrypted_key: {:?}", decrypted_key);
         assert_eq!(sym_key, decrypted_key.unwrap());
     }
 }
