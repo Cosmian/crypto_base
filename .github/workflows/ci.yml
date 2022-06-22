@@ -17,12 +17,6 @@ jobs:
           override: true
           components: rustfmt, clippy
 
-      - name: Static analysis all features
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-features -- -D warnings
-
       # Ensure all code has been formatted with rustfmt
       - name: Check formatting
         uses: actions-rs/cargo@v1
@@ -34,6 +28,11 @@ jobs:
         with:
           command: clippy
           args: --all-targets -- -D warnings
+      - name: Static analysis all features
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --all-features -- -D warnings
 
   test:
     name: Test on ${{ matrix.os }}
