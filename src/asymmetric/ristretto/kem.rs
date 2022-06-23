@@ -1,7 +1,7 @@
 use crate::{
     asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
     hybrid_crypto::Kem,
-    kdf, Error, KeyTrait,
+    kdf, CryptoBaseError, KeyTrait,
 };
 use rand_core::{CryptoRng, RngCore};
 use std::convert::TryFrom;
@@ -25,7 +25,7 @@ impl Kem for X25519Crypto {
         rng: &mut R,
         pk: &<Self::KeyPair as KeyPair>::PublicKey,
         secret_key_length: usize,
-    ) -> Result<(Vec<u8>, Vec<u8>), Error> {
+    ) -> Result<(Vec<u8>, Vec<u8>), CryptoBaseError> {
         let ephemeral_keypair = Self::key_gen(rng);
 
         // encapsulation
@@ -49,7 +49,7 @@ impl Kem for X25519Crypto {
         sk: &<Self::KeyPair as KeyPair>::PrivateKey,
         encapsulation: &[u8],
         secret_key_length: usize,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         // case CheckMod = 1: the ciphertext should map to valid public key
         // compute the shared secret
         let h = <Self::KeyPair as KeyPair>::PublicKey::try_from(encapsulation)? * sk;
@@ -68,20 +68,22 @@ impl Kem for X25519Crypto {
 
 #[cfg(test)]
 mod tests {
-    use crate::entropy::CsRng;
-
-    use super::*;
-    use anyhow::Result;
+    use crate::{
+        asymmetric::{ristretto::X25519Crypto, KeyPair},
+        entropy::CsRng,
+        hybrid_crypto::Kem,
+    };
 
     #[test]
-    fn test_kem() -> Result<()> {
+    fn test_kem() {
         let mut rng = CsRng::new();
         let key_pair = X25519Crypto::key_gen(&mut rng);
         let (secret_key, encapsulation) = X25519Crypto::encaps(&mut rng, key_pair.public_key(), 32)
-            .map_err(|err| anyhow::eyre!("{:?}", err))?;
+            .expect("X25519 encaps failed");
         let res = X25519Crypto::decaps(key_pair.private_key(), &encapsulation, 32)
-            .map_err(|err| anyhow::eyre!("{:?}", err))?;
-        anyhow::ensure!(secret_key == res, "Wrong decapsulation!");
-        Ok(())
+            .expect("X25519 decaps failed");
+        if secret_key != res {
+            panic!("Wrong decapsulation!");
+        }
     }
 }

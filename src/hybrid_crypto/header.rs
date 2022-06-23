@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     asymmetric::{AsymmetricCrypto, KeyPair},
-    error::Error,
     hybrid_crypto::BytesScanner,
     symmetric_crypto::{nonce::NonceTrait, SymmetricCrypto},
+    CryptoBaseError,
 };
 
 /// Metadata encrypted as part of the header
@@ -21,7 +21,7 @@ use crate::{
 ///
 /// The `additional_data` is not used as a security parameter. It is optional
 /// data (such as index tags) symmetrically encrypted as part of the header.
-#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, Serialize, Deserialize)]
 pub struct Metadata {
     pub uid: Vec<u8>,
     pub additional_data: Option<Vec<u8>>,
@@ -45,7 +45,7 @@ impl Metadata {
     /// Encode the metadata as a byte array
     ///
     /// The first 4 bytes is the u32 length of the UID as big endian bytes
-    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, CryptoBaseError> {
         if self.is_empty() {
             return Ok(vec![]);
         }
@@ -58,16 +58,16 @@ impl Metadata {
     }
 
     /// Decode the metadata from a byte array
-    pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Metadata> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
         if bytes.is_empty() {
-            return Ok(Metadata::default());
+            return Ok(Self::default());
         }
         let mut scanner = BytesScanner::new(bytes);
         let uid_len = scanner.read_u32()? as usize;
         let uid = scanner.next(uid_len)?.to_vec();
         let additional_data = scanner.remainder().to_owned().map(|v| v.to_vec());
 
-        Ok(Metadata {
+        Ok(Self {
             uid,
             additional_data,
         })
@@ -77,7 +77,9 @@ impl Metadata {
 /// A `Header` contains the the resource `uid` and an
 /// encryption of the symmetric key used to encrypt the resource content.
 /// The symmetric key is encrypted using a public key cryptographic scheme
-#[deprecated(note = "this structure is too rigid as such and must be rewritten usin the Kem trait")]
+#[deprecated(
+    note = "this structure is too rigid as such and must be rewritten using the Kem trait"
+)]
 #[derive(Debug, PartialEq)]
 pub struct Header<A: AsymmetricCrypto, S: SymmetricCrypto> {
     asymmetric_scheme: A,
@@ -101,11 +103,11 @@ where
         public_key: &<<A as AsymmetricCrypto>::KeyPair as KeyPair>::PublicKey,
         encryption_parameters: Option<&<A as AsymmetricCrypto>::EncryptionParameters>,
         metadata: Metadata,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, CryptoBaseError> {
         let asymmetric_scheme = A::default();
         let (symmetric_key, encrypted_symmetric_key) =
             asymmetric_scheme.generate_symmetric_key::<S>(public_key, encryption_parameters)?;
-        Ok(Header {
+        Ok(Self {
             asymmetric_scheme,
             metadata,
             symmetric_key,
@@ -118,7 +120,7 @@ where
     pub fn from_bytes(
         bytes: &[u8],
         private_key: &<<A as AsymmetricCrypto>::KeyPair as KeyPair>::PrivateKey,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, CryptoBaseError> {
         // scan the input bytes
         let mut scanner = BytesScanner::new(bytes);
 
@@ -150,7 +152,7 @@ where
             Metadata::default()
         };
 
-        Ok(Header {
+        Ok(Self {
             asymmetric_scheme,
             metadata,
             symmetric_key,
@@ -167,7 +169,10 @@ where
     ///  - [S+4+N, S+8+N[: big-endian u32: the size M of the symmetrically
     ///    encrypted Metadata
     ///  - [S+8+N,S+8+N+M[: the symmetrically encrypted metadata
-    pub fn to_bytes<R: CryptoRng + RngCore>(&self, rng: &mut R) -> anyhow::Result<Vec<u8>> {
+    pub fn to_bytes<R: CryptoRng + RngCore>(
+        &self,
+        rng: &mut R,
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         // ..size
         let mut bytes = u32_len(&self.encrypted_symmetric_key)?.to_vec();
         // ...bytes
@@ -194,22 +199,24 @@ where
     }
 
     /// The clear text symmetric key generated in the header
-    pub fn symmetric_key(&self) -> &S::Key {
+    pub const fn symmetric_key(&self) -> &S::Key {
         &self.symmetric_key
     }
 
     /// The meta data in the header
-    pub fn meta_data(&self) -> &Metadata {
+    pub const fn meta_data(&self) -> &Metadata {
         &self.metadata
     }
 }
 
 // Attempt getting the length of this slice as an u32 in 4 endian bytes and
 // return an error if it overflows
-fn u32_len(slice: &[u8]) -> Result<[u8; 4], crate::Error> {
+fn u32_len(slice: &[u8]) -> Result<[u8; 4], CryptoBaseError> {
     u32::try_from(slice.len())
         .map_err(|_| {
-            Error::InvalidSize("Slice of bytes is too big to fit in 2^32 bytes".to_string())
+            CryptoBaseError::InvalidSize(
+                "Slice of bytes is too big to fit in 2^32 bytes".to_string(),
+            )
         })
         .map(u32::to_be_bytes)
 }
@@ -218,16 +225,16 @@ fn u32_len(slice: &[u8]) -> Result<[u8; 4], crate::Error> {
 #[allow(deprecated)]
 mod tests {
 
-    use super::Header;
     use crate::{
         asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
         entropy::CsRng,
-        hybrid_crypto::header::Metadata,
+        hybrid_crypto::header::{Header, Metadata},
         symmetric_crypto::aes_256_gcm_pure::Aes256GcmCrypto,
+        CryptoBaseError,
     };
 
     #[test]
-    pub fn test_meta_data() -> anyhow::Result<()> {
+    pub fn test_meta_data() -> Result<(), CryptoBaseError> {
         let asymmetric_scheme = X25519Crypto::default();
 
         // Full metadata test
@@ -253,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_header() -> anyhow::Result<()> {
+    pub fn test_header() -> Result<(), CryptoBaseError> {
         let mut rng = CsRng::new();
         let asymmetric_scheme = X25519Crypto::default();
         let key_pair = asymmetric_scheme.generate_key_pair(None)?;

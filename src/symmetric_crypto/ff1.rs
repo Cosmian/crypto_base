@@ -6,7 +6,7 @@ use itertools::Itertools;
 use num_traits::Bounded;
 use tracing::trace;
 
-use crate::{symmetric_crypto::SymmetricCrypto, Error};
+use crate::{symmetric_crypto::SymmetricCrypto, CryptoBaseError};
 
 pub const RECOMMENDED_THRESHOLD: usize = 1_000_000;
 pub const KEY_LENGTH: usize = 32;
@@ -22,7 +22,7 @@ pub struct FF1Crypto;
 
 impl Display for FF1Crypto {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", FF1Crypto::description())
+        write!(f, "{}", Self::description())
     }
 }
 
@@ -57,20 +57,24 @@ struct RebasedInput {
     mapping: HashMap<char, u8>,
 }
 
-///
 impl RebasedInput {
     // According to the given alphabet, get the plaintext (or ciphertext) in a new
     // integer `base` starting from 0.
-    fn rebase_text(input: &str, alphabet: &str) -> anyhow::Result<Self> {
-        trace!("input_text: {}, alphabet: {}", &input, &alphabet);
+    fn rebase_text(input: &str, alphabet: &str) -> Result<Self, CryptoBaseError> {
+        trace!("input_text: {input}, alphabet: {alphabet}");
         trace!("input_text.chars: {:?}", input.chars());
         trace!("alphabet.chars: {:?}", alphabet.chars());
 
-        anyhow::ensure!(!input.is_empty(), "Cannot rebased empty input");
-        anyhow::ensure!(
-            !alphabet.is_empty(),
-            "Alphabet is empty. No FPE encryption possible"
-        );
+        if input.is_empty() {
+            return Err(CryptoBaseError::InvalidSize(
+                "Cannot rebase empty input".to_string(),
+            ));
+        }
+        if alphabet.is_empty() {
+            return Err(CryptoBaseError::InvalidSize(
+                "Alphabet is empty. No FPE encryption is possible".to_string(),
+            ));
+        }
 
         // Our final result
         let mut result = Self::default();
@@ -88,26 +92,27 @@ impl RebasedInput {
             }
         }
 
-        anyhow::ensure!(
-            !stripped_input.is_empty(),
-            "Input does not contain any characters of the alphabet! input={} alphabet={}",
-            input,
-            alphabet
-        );
+        if stripped_input.is_empty() {
+            return Err(CryptoBaseError::InvalidSize(format!(
+                "Input does not contain any characters of the alphabet! input={input} alphabet={alphabet}")
+            ));
+        }
         // Check if FPE is usable (in a security point of view, verifying the
         // threshold as suggested in NIST standard https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-38G.pdf)
-        anyhow::ensure!(
-            alphabet.len() ^ stripped_input.len() < RECOMMENDED_THRESHOLD,
-            "Given alphabet length ({}), plaintext is too short. Plaintext length should be at \
-             least {}",
-            alphabet.len(),
-            (RECOMMENDED_THRESHOLD as f32).log(alphabet.len() as f32)
-        );
+        if alphabet.len() ^ stripped_input.len() >= RECOMMENDED_THRESHOLD {
+            return Err(CryptoBaseError::InvalidSize( format!("Given alphabet length ({}), plaintext is too short. Plaintext length should be at least {}", alphabet.len(),(RECOMMENDED_THRESHOLD as f32).log(alphabet.len() as f32))));
+        }
 
         // Fill the mapping between original representation ("ABCDEFG...") and
         // new base representation ("01234567...")
         let alphabet = alphabet.chars().sorted().unique().collect::<Vec<_>>();
-        for i in 0_u8..u8::try_from(alphabet.len())? {
+        let len = u8::try_from(alphabet.len()).map_err(|e| {
+            CryptoBaseError::ConversionError(format!(
+                "cannot convert alphabet len ({}) to u8: {e}",
+                alphabet.len()
+            ))
+        })?;
+        for i in 0_u8..len {
             result.mapping.insert(alphabet[i as usize], i);
         }
         trace!("input mapping: {:?}", &result.mapping);
@@ -116,12 +121,21 @@ impl RebasedInput {
         for c in stripped_input.chars() {
             match result.mapping.get(&c) {
                 Some(matching_char) => result.input.push(u16::from(*matching_char)),
-                None => anyhow::bail!("Cannot map input_text char {}", c),
+                None => {
+                    return Err(CryptoBaseError::ConversionError(format!(
+                        "cannot map input text char {c} to u8"
+                    )))
+                }
             }
         }
 
         // Quick compute of radix (for convenience)
-        result.radix = u32::try_from(alphabet.len())?;
+        result.radix = u32::try_from(alphabet.len()).map_err(|e| {
+            CryptoBaseError::ConversionError(format!(
+                "cannot convert alphabet len ({}) to u32: {e}",
+                alphabet.len()
+            ))
+        })?;
         trace!("rebased_plaintext: {:?}", &result.input);
         trace!("radix: {:?}", &result.radix);
 
@@ -129,10 +143,14 @@ impl RebasedInput {
     }
 
     // Revert rebase for the given char
-    fn revert_rebase(&self, integer: u16) -> anyhow::Result<char> {
+    fn revert_rebase(&self, integer: u16) -> Result<char, CryptoBaseError> {
         let mut result = '0';
+        let integer = u8::try_from(integer).map_err(|e| {
+            CryptoBaseError::ConversionError(format!("cannot convert u16 to u8 ({integer}): {e}"))
+        })?;
+        // TODO: remove unneeded clone?
         for (k, v) in self.mapping.clone() {
-            if u8::try_from(integer)? == v {
+            if integer == v {
                 result = k;
                 break;
             }
@@ -140,7 +158,7 @@ impl RebasedInput {
         Ok(result)
     }
 
-    fn revert_rebase_vec(&self, input: Vec<u16>) -> anyhow::Result<String> {
+    fn revert_rebase_vec(&self, input: Vec<u16>) -> Result<String, CryptoBaseError> {
         let mut result = String::new();
         for e in input {
             result += self.revert_rebase(e)?.to_string().as_str();
@@ -148,13 +166,13 @@ impl RebasedInput {
         Ok(result)
     }
 
-    fn reconstruct_original_format(&self, input: Vec<u16>) -> anyhow::Result<String> {
+    fn reconstruct_original_format(&self, input: Vec<u16>) -> Result<String, CryptoBaseError> {
         let result = self.revert_rebase_vec(input)?;
         let result = self.reinsert_excluded_chars(result);
         Ok(result)
     }
 
-    fn reinsert_excluded_chars(&self, input: String) -> std::string::String {
+    fn reinsert_excluded_chars(&self, input: String) -> String {
         let mut result = input;
         for idx in self.excluded_chars_indexes.clone() {
             result.insert(idx, self.original_chars[idx]);
@@ -162,7 +180,7 @@ impl RebasedInput {
         result
     }
 
-    fn _reinsert_negative_sign(&self, input: String) -> std::string::String {
+    fn _reinsert_negative_sign(&self, input: String) -> String {
         let mut result = input;
         for idx in self.excluded_chars_indexes.clone() {
             if idx != 0 {
@@ -177,7 +195,7 @@ impl RebasedInput {
         result
     }
 
-    fn remove_left_padding(&self, cleartext: String) -> std::string::String {
+    fn remove_left_padding(&self, cleartext: String) -> String {
         // Remove left padding
         let mut is_0 = true;
         let mut result = String::new();
@@ -214,22 +232,26 @@ impl FF1Crypto {
         tweak: &[u8],
         radix: u32,
         plaintext: Vec<u16>,
-    ) -> Result<Vec<u16>, Error> {
+    ) -> Result<Vec<u16>, CryptoBaseError> {
         if key.len() != KEY_LENGTH {
-            return Err(Error::SizeError {
+            return Err(CryptoBaseError::SizeError {
                 given: key.len(),
                 expected: KEY_LENGTH,
             });
         }
 
-        let fpe_ff = FF1::<Aes256>::new(key, radix).expect("failed building new FF1");
+        let fpe_ff = FF1::<Aes256>::new(key, radix).map_err(|_| {
+            CryptoBaseError::EncryptionError(
+                "failed generating new FF1 engine for encryption".to_string(),
+            )
+        })?;
         let ciphertext = fpe_ff
             .encrypt(tweak, &FlexibleNumeralString::from(plaintext))
-            .expect("FF1 encrypting failed");
+            .map_err(|_| CryptoBaseError::EncryptionError("failed FF1 encryption".to_string()))?;
 
         // Get ciphertext as u16-vector
         let ciphertext_vec = Vec::<u16>::from(ciphertext);
-        trace!("ciphertext_vec: {:?}", &ciphertext_vec);
+        trace!("ciphertext_vec: {ciphertext_vec:?}");
 
         Ok(ciphertext_vec)
     }
@@ -239,21 +261,25 @@ impl FF1Crypto {
         tweak: &[u8],
         radix: u32,
         ciphertext: Vec<u16>,
-    ) -> Result<Vec<u16>, Error> {
+    ) -> Result<Vec<u16>, CryptoBaseError> {
         if key.len() != KEY_LENGTH {
-            return Err(Error::SizeError {
+            return Err(CryptoBaseError::SizeError {
                 given: key.len(),
                 expected: KEY_LENGTH,
             });
         }
 
-        let fpe_ff = FF1::<Aes256>::new(key, radix).expect("failed building new FF1");
+        let fpe_ff = FF1::<Aes256>::new(key, radix).map_err(|_| {
+            CryptoBaseError::EncryptionError(
+                "failed generating new FF1 engine for decryption".to_string(),
+            )
+        })?;
         let cleartext = fpe_ff
             .decrypt(tweak, &FlexibleNumeralString::from(ciphertext))
-            .expect("FF1 decrypting failed");
+            .map_err(|_| CryptoBaseError::EncryptionError("failed FF1 decryption".to_string()))?;
         // Get cleartext as u16-vector
         let cleartext_vec = Vec::<u16>::from(cleartext);
-        trace!("cleartext_vec: {:?}", &cleartext_vec);
+        trace!("cleartext_vec: {cleartext_vec:?}");
         Ok(cleartext_vec)
     }
 
@@ -262,12 +288,13 @@ impl FF1Crypto {
         tweak: &[u8],
         radix: u32,
         plaintext: Vec<u8>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         let plaintext = plaintext.into_iter().map(u16::from).collect::<Vec<_>>();
         let ciphertext = Self::encrypt_u16(key, tweak, radix, plaintext)?;
         let mut result = Vec::with_capacity(ciphertext.len());
-        for e in ciphertext {
-            result.push(u8::try_from(e).map_err(|e| Error::InvalidSize(e.to_string()))?);
+        for item in ciphertext {
+            result
+                .push(u8::try_from(item).map_err(|e| CryptoBaseError::InvalidSize(e.to_string()))?);
         }
         Ok(result)
     }
@@ -277,12 +304,14 @@ impl FF1Crypto {
         tweak: &[u8],
         radix: u32,
         ciphertext: Vec<u8>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         let ciphertext = ciphertext.into_iter().map(u16::from).collect::<Vec<_>>();
         let cleartext = Self::decrypt_u16(key, tweak, radix, ciphertext)?;
         let mut result = Vec::with_capacity(cleartext.len());
-        for e in cleartext {
-            result.push(u8::try_from(e).map_err(|e| Error::ConversionError(e.to_string()))?);
+        for item in cleartext {
+            result.push(
+                u8::try_from(item).map_err(|e| CryptoBaseError::ConversionError(e.to_string()))?,
+            );
         }
         Ok(result)
     }
@@ -295,15 +324,15 @@ impl FF1Crypto {
         tweak: &[u8],
         alphabet: &str,
         plaintext: &str,
-    ) -> anyhow::Result<String> {
+    ) -> Result<String, CryptoBaseError> {
         let rebased = RebasedInput::rebase_text(plaintext, alphabet)?;
 
         let ciphertext = Self::encrypt_u16(key, tweak, rebased.radix, rebased.input.clone())?;
-        trace!("ciphertext: {:?}", &ciphertext);
+        trace!("ciphertext: {ciphertext:?}");
 
         // Represent the ciphertext in the original plaintext base
         let result = rebased.reconstruct_original_format(ciphertext)?;
-        trace!("ciphertext (format preserved): {:?}", result);
+        trace!("ciphertext (format preserved): {result:?}");
 
         Ok(result)
     }
@@ -313,15 +342,15 @@ impl FF1Crypto {
         tweak: &[u8],
         alphabet: &str,
         ciphertext: &str,
-    ) -> anyhow::Result<String> {
+    ) -> Result<String, CryptoBaseError> {
         let rebased = RebasedInput::rebase_text(ciphertext, alphabet)?;
 
         let cleartext = Self::decrypt_u16(key, tweak, rebased.radix, rebased.input.clone())?;
-        trace!("cleartext: {:?}", &cleartext);
+        trace!("cleartext: {cleartext:?}");
 
         // Represent the cleartext in the original plaintext base
         let result = rebased.reconstruct_original_format(cleartext)?;
-        trace!("cleartext (format preserved): {:?}", result);
+        trace!("cleartext (format preserved): {result:?}");
 
         Ok(result)
     }
@@ -338,7 +367,7 @@ impl FF1Crypto {
         key: &[u8],
         tweak: &[u8],
         plaintext: &str,
-    ) -> anyhow::Result<String>
+    ) -> Result<String, CryptoBaseError>
     where
         T: ToString + Bounded + FromStr + PartialOrd + Ord,
         <T as std::str::FromStr>::Err: std::error::Error,
@@ -347,10 +376,11 @@ impl FF1Crypto {
         let rebased = RebasedInput::rebase_text(plaintext, alphabet.as_str())?;
 
         let expected_output_length = T::max_value().to_string().len() - 1;
-        anyhow::ensure!(
-            expected_output_length > 0,
-            "Expect output length cannot be 0"
-        );
+        if expected_output_length == 0 {
+            return Err(CryptoBaseError::InvalidSize(
+                "Expected output length cannot be 0".to_string(),
+            ));
+        }
 
         if rebased.input.len() <= expected_output_length {
             // Add custom left padding for digit string whose length is less than
@@ -368,10 +398,13 @@ impl FF1Crypto {
             let numeric_result = result
                 .parse::<T>()
                 .expect("Encryption digit strings leads to an unparsable digit-strings");
-            anyhow::ensure!(
-                numeric_result >= T::min_value() && numeric_result <= T::max_value(),
-                "Encrypted digit strings lead to an integer overflow"
-            );
+
+            if numeric_result < T::min_value() || numeric_result > T::max_value() {
+                return Err(CryptoBaseError::InvalidSize(
+                    "Encrypted digit strings lead to an integer overflow".to_string(),
+                ));
+            }
+
             Ok(result)
         } else {
             let left = &rebased.input[0..rebased.input.len() - expected_output_length];
@@ -379,10 +412,10 @@ impl FF1Crypto {
             let right_plaintext = rebased.revert_rebase_vec(right.to_vec())?;
             let right_ciphertext = Self::encrypt_digit_string::<T>(key, tweak, &right_plaintext)?;
             let left = rebased.revert_rebase_vec(left.to_vec())?;
-            let result = format!("{}{}", left, right_ciphertext);
+            let result = format!("{left}{right_ciphertext}");
             let result = rebased.reinsert_excluded_chars(result);
 
-            trace!("result: {:?}", &result);
+            trace!("result: {result:?}");
             Ok(result)
         }
     }
@@ -391,7 +424,7 @@ impl FF1Crypto {
         key: &[u8],
         tweak: &[u8],
         ciphertext: &str,
-    ) -> anyhow::Result<String>
+    ) -> Result<String, CryptoBaseError>
     where
         T: ToString + Bounded,
     {
@@ -399,16 +432,17 @@ impl FF1Crypto {
         let rebased = RebasedInput::rebase_text(ciphertext, alphabet.as_str())?;
 
         let expected_output_length = T::max_value().to_string().len() - 1;
-        anyhow::ensure!(
-            expected_output_length > 0,
-            "Expect output length cannot be 0"
-        );
+        if expected_output_length == 0 {
+            return Err(CryptoBaseError::InvalidSize(
+                "Expected output length cannot be 0".to_string(),
+            ));
+        }
 
         if rebased.input.len() <= expected_output_length {
             let cleartext = Self::decrypt_u16(key, tweak, rebased.radix, rebased.input.clone())?;
             let result = rebased.reconstruct_original_format(cleartext)?;
             let result = rebased.remove_left_padding(result);
-            trace!("cleartext (format preserved): {:?}", result);
+            trace!("cleartext (format preserved): {result:?}");
             Ok(result)
         } else {
             let left = &rebased.input[0..rebased.input.len() - expected_output_length];
@@ -422,10 +456,10 @@ impl FF1Crypto {
                 let removed_zeroes_length = expected_output_length - result.len();
                 let removed_zeroes_string =
                     (0..removed_zeroes_length).map(|_| "0").collect::<String>();
-                result = format!("{}{}", removed_zeroes_string, result);
+                result = format!("{removed_zeroes_string}{result}");
             }
             let left = rebased.revert_rebase_vec(left.to_vec())?;
-            let result = format!("{}{}", left, result);
+            let result = format!("{left}{result}");
             let result = rebased.reinsert_excluded_chars(result);
             Ok(result)
         }
@@ -439,7 +473,7 @@ impl SymmetricCrypto for FF1Crypto {
     const MAC_LENGTH: usize = MAC_LENGTH;
 
     fn description() -> String {
-        format!("FF1 pure Rust (key bits: {})", KEY_LENGTH * 8,)
+        format!("FF1 pure Rust (key bits: {})", KEY_LENGTH * 8)
     }
 
     fn encrypt(
@@ -447,7 +481,7 @@ impl SymmetricCrypto for FF1Crypto {
         bytes: &[u8],
         _nonce: &Self::Nonce,
         _additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         Self::encrypt_u8(&key.0, &[], 256, bytes.to_vec())
     }
 
@@ -456,20 +490,19 @@ impl SymmetricCrypto for FF1Crypto {
         bytes: &[u8],
         _nonce: &Self::Nonce,
         _additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         Self::decrypt_u8(&key.0, &[], 256, bytes.to_vec())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use rand::{thread_rng, Rng};
     use rand_distr::Alphanumeric;
 
-    use super::*;
-
     #[test]
-    fn fpe_ff1_string_credit_card_number() -> anyhow::Result<()> {
+    fn fpe_ff1_string_credit_card_number() -> Result<(), CryptoBaseError> {
         // let plaintext = "1234123412341234";
         let key = [0_u8; KEY_LENGTH];
         for _ in 0..100 {
@@ -487,7 +520,7 @@ mod tests {
     }
 
     #[test]
-    fn fpe_ff1_u16_credit_card_number() -> anyhow::Result<()> {
+    fn fpe_ff1_u16_credit_card_number() -> Result<(), CryptoBaseError> {
         let ccn = "1234123412341234";
         let key = [0_u8; KEY_LENGTH];
         let plaintext = ccn
@@ -502,7 +535,7 @@ mod tests {
     }
 
     #[test]
-    fn fpe_ff1_u8_credit_card_number() -> anyhow::Result<()> {
+    fn fpe_ff1_u8_credit_card_number() -> Result<(), CryptoBaseError> {
         let ccn = "1234123412341234";
         let plaintext = ccn.as_bytes().to_vec();
         let key = [0_u8; KEY_LENGTH];
@@ -513,7 +546,7 @@ mod tests {
     }
 
     #[test]
-    fn fpe_ff1_u16_range_test() -> anyhow::Result<()> {
+    fn fpe_ff1_u16_range_test() -> Result<(), CryptoBaseError> {
         let key = [0_u8; KEY_LENGTH];
 
         for _ in 1..100 {
@@ -529,7 +562,7 @@ mod tests {
     }
 
     #[test]
-    fn fpe_ff1_digits_encryption() -> anyhow::Result<()> {
+    fn fpe_ff1_digits_encryption() -> Result<(), CryptoBaseError> {
         let key = vec![0; KEY_LENGTH];
 
         // Length == 0
@@ -576,7 +609,7 @@ mod tests {
     }
 
     #[test]
-    fn fpe_ff1_limit_cases() -> anyhow::Result<()> {
+    fn fpe_ff1_limit_cases() -> Result<(), CryptoBaseError> {
         let key = vec![0; KEY_LENGTH];
 
         let pt = "4294967295"; // 2^32 - 1
@@ -593,7 +626,7 @@ mod tests {
     }
 
     #[test]
-    fn fpe_ff1_digits_range_test() -> anyhow::Result<()> {
+    fn fpe_ff1_digits_range_test() -> Result<(), CryptoBaseError> {
         let key = [0_u8; KEY_LENGTH];
 
         for _ in 0..1000 {

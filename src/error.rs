@@ -1,10 +1,10 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum CryptoBaseError {
     #[error("Wrong size: {given} given should be {expected}")]
     SizeError { given: usize, expected: usize },
-    #[error("Invlid size: {0}")]
+    #[error("Invalid size: {0}")]
     InvalidSize(String),
     #[error("Failed to parse")]
     HexParseError(#[from] hex::FromHexError),
@@ -18,4 +18,6 @@ pub enum Error {
     EncryptionError(String),
     #[error("{0}")]
     DecryptionError(String),
+    #[error("{0}")]
+    HardwareCapability(String),
 }

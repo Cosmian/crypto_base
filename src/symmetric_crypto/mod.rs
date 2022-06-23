@@ -8,7 +8,7 @@ pub mod aes_256_gcm_sodium;
 #[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
 pub mod xchacha20;
 
-use crate::{Error, KeyTrait};
+use crate::{CryptoBaseError, KeyTrait};
 use nonce::NonceTrait;
 use std::vec::Vec;
 
@@ -37,7 +37,7 @@ pub trait SymmetricCrypto: Send + Sync {
         bytes: &[u8],
         nonce: &Self::Nonce,
         additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, Error>;
+    ) -> Result<Vec<u8>, CryptoBaseError>;
 
     /// Decrypts a message in combined mode: the MAC is appended to the cipher
     /// text
@@ -51,5 +51,5 @@ pub trait SymmetricCrypto: Send + Sync {
         bytes: &[u8],
         nonce: &Self::Nonce,
         additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, Error>;
+    ) -> Result<Vec<u8>, CryptoBaseError>;
 }

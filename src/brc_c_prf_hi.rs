@@ -5,11 +5,11 @@
 
 use std::{cmp, convert::TryFrom};
 
+use crate::CryptoBaseError;
 use aes::{
     cipher::{generic_array::GenericArray, BlockEncrypt, NewBlockCipher},
     Aes256,
 };
-use anyhow::Result;
 
 /// Tests whether the AES native interface is available on this machine
 ///
@@ -18,11 +18,8 @@ use anyhow::Result;
 pub fn aes_ni_available() -> bool {
     #[cfg(all(not(target_arch = "wasm32"), not(windows)))]
     {
-        let information = cupid::master();
-        if let Some(information) = information {
-            if information.aesni() {
-                return true;
-            }
+        if let Some(information) = cupid::master() {
+            return information.aesni();
         }
     }
     false
@@ -66,15 +63,15 @@ impl Trapdoor {
         self.clone().into()
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Trapdoor> {
-        Trapdoor::try_from(bytes).map_err(|e| anyhow::anyhow!(e))
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
+        Self::try_from(bytes).map_err(CryptoBaseError::ConversionError)
     }
 }
 
 /// Serialization of a Trapdoor into bytes
 impl From<Trapdoor> for Vec<u8> {
-    fn from(t: Trapdoor) -> Vec<u8> {
-        let mut b: Vec<u8> = Vec::with_capacity(4 + (1 + 32) * t.nodes.len());
+    fn from(t: Trapdoor) -> Self {
+        let mut b: Self = Self::with_capacity(4 + (1 + 32) * t.nodes.len());
         b.extend_from_slice(&(t.nodes.len() as u32).to_be_bytes());
         for n in t.nodes {
             b.push(n.level);
@@ -89,7 +86,7 @@ impl TryFrom<Vec<u8>> for Trapdoor {
     type Error = String;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        Trapdoor::try_from(value.as_slice())
+        Self::try_from(value.as_slice())
     }
 }
 
@@ -114,7 +111,7 @@ impl TryFrom<&[u8]> for Trapdoor {
                 k,
             })
         }
-        Ok(Trapdoor { nodes })
+        Ok(Self { nodes })
     }
 }
 
@@ -146,7 +143,7 @@ pub fn trapdoor_range(
     limit: Option<u32>,
     k: &[u8; 32],
     level: u8,
-) -> anyhow::Result<Trapdoor> {
+) -> Trapdoor {
     // Need at least two values set in (min_c, max_c, limit)
     let (c_min, c_max) = match (min_c, max_c, limit) {
         (None, None, None) => (0, (1 << level) - 1),
@@ -158,9 +155,9 @@ pub fn trapdoor_range(
         (None, Some(ma), Some(l)) => (ma.saturating_sub(l - 1), ma),
         (Some(mi), Some(ma), Some(l)) => (mi, cmp::min(ma, mi.saturating_add(l - 1))),
     };
-    Ok(Trapdoor {
+    Trapdoor {
         nodes: trapdoor_inner_range_no_rec(c_min, c_max, k, level),
-    })
+    }
 }
 
 fn trapdoor_inner_range_no_rec(min_c: u32, max_c: u32, k: &[u8; 32], level: u8) -> Vec<Node> {
@@ -383,7 +380,7 @@ pub(crate) mod tests {
 
     impl CsRng {
         pub fn new() -> Self {
-            CsRng {
+            Self {
                 rng: Hc128Rng::from_entropy(),
             }
         }
@@ -397,7 +394,7 @@ pub(crate) mod tests {
 
     impl Default for CsRng {
         fn default() -> Self {
-            CsRng::new()
+            Self::new()
         }
     }
 
@@ -619,7 +616,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_trapdoor_range_min_0() -> anyhow::Result<()> {
+    fn test_trapdoor_range_min_0() {
         let mut rng = CsRng::new();
         let k = rng.random_256_bits();
         let level = 4;
@@ -629,7 +626,7 @@ pub(crate) mod tests {
         });
         // 0b0000
         let max_c = 0b0000;
-        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 1, "0b0000 len");
         assert_eq!(0, trapdoor.nodes[0].level, "0b0000 level");
         // assert_eq!(leaves[0].k, trapdoor.nodes[0].k);
@@ -640,7 +637,7 @@ pub(crate) mod tests {
         }
         // 0b0001
         let max_c = 0b0001_u32;
-        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 1, "0b0001 len");
         assert_eq!(1, trapdoor.nodes[0].level, "0b0001 level");
         let these_leaves = super::leaves(&trapdoor);
@@ -650,7 +647,7 @@ pub(crate) mod tests {
         }
         // 0b0011
         let max_c = 0b0011_u32;
-        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 1, "0b0011 len");
         assert_eq!(2, trapdoor.nodes[0].level, "0b0011 level");
         let these_leaves = super::leaves(&trapdoor);
@@ -660,7 +657,7 @@ pub(crate) mod tests {
         }
         // 0b0101
         let max_c = 0b0101_u32;
-        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 2, "0b0101 len");
         assert_eq!(2, trapdoor.nodes[0].level, "0b0101 level 1");
         assert_eq!(1, trapdoor.nodes[1].level, "0b0101 level 2");
@@ -671,7 +668,7 @@ pub(crate) mod tests {
         }
         // 0b0110
         let max_c = 0b0110_u32;
-        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 3, "0b0110 len");
         assert_eq!(2, trapdoor.nodes[0].level, "0b0110 level 1");
         assert_eq!(1, trapdoor.nodes[1].level, "0b0110 level 2");
@@ -683,7 +680,7 @@ pub(crate) mod tests {
         }
         // 0b0111
         let max_c = 0b0111_u32;
-        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 1);
         assert_eq!(3, trapdoor.nodes[0].level);
         let these_leaves = super::leaves(&trapdoor);
@@ -693,7 +690,7 @@ pub(crate) mod tests {
         }
         // 0b1111
         let max_c = 0b1111_u32;
-        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 1);
         assert_eq!(4, trapdoor.nodes[0].level);
         let these_leaves = super::leaves(&trapdoor);
@@ -703,7 +700,7 @@ pub(crate) mod tests {
         }
         // 0b1110
         let max_c = 0b1110_u32;
-        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(0), Some(max_c), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 4);
         assert_eq!(3, trapdoor.nodes[0].level);
         assert_eq!(2, trapdoor.nodes[1].level);
@@ -714,11 +711,10 @@ pub(crate) mod tests {
         for i in 0..(max_c + 1) as usize {
             assert_eq!(leaves[i], these_leaves[i]);
         }
-        Ok(())
     }
 
     #[test]
-    fn test_trapdoor_range_max() -> anyhow::Result<()> {
+    fn test_trapdoor_range_max() {
         let mut rng = CsRng::new();
         let k = rng.random_256_bits();
         let level = 4;
@@ -728,7 +724,7 @@ pub(crate) mod tests {
         });
         // 0b0000
         let min_c = 0b0000;
-        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 1, "0b0000 len");
         assert_eq!(4, trapdoor.nodes[0].level, "0b0000 level");
         // assert_eq!(leaves[0].k, trapdoor.nodes[0].k);
@@ -739,7 +735,7 @@ pub(crate) mod tests {
         }
         // 0b0001
         let min_c = 0b0001_u32;
-        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 4, "0b0001 len");
         assert_eq!(2, trapdoor.nodes[0].level, "0b0001 level 1");
         assert_eq!(1, trapdoor.nodes[1].level, "0b0001 level 2");
@@ -755,7 +751,7 @@ pub(crate) mod tests {
         }
         // 0b0011
         let min_c = 0b0011_u32;
-        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 3, "0b0011 len");
         assert_eq!(2, trapdoor.nodes[0].level, "0b0011 level 1");
         assert_eq!(0, trapdoor.nodes[1].level, "0b0011 level 2");
@@ -770,7 +766,7 @@ pub(crate) mod tests {
         }
         // 0b0101
         let min_c = 0b0101_u32;
-        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 3, "0b0101 len");
         //assert_eq!(2, trapdoor.nodes[0].level, "0b0101 level 1");
         //assert_eq!(1, trapdoor.nodes[1].level, "0b0101 level 2");
@@ -784,7 +780,7 @@ pub(crate) mod tests {
         }
         // 0b0110
         let min_c = 0b0110_u32;
-        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 2, "0b0110 len");
         //assert_eq!(2, trapdoor.nodes[0].level, "0b0110 level 1");
         //assert_eq!(1, trapdoor.nodes[1].level, "0b0110 level 2");
@@ -799,7 +795,7 @@ pub(crate) mod tests {
         }
         // 0b0111
         let min_c = 0b0111_u32;
-        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 2);
         //assert_eq!(3, trapdoor.nodes[0].level);
         let mut these_leaves = super::leaves(&trapdoor);
@@ -812,7 +808,7 @@ pub(crate) mod tests {
         }
         // 0b1111
         let min_c = 0b1111_u32;
-        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 1);
         //assert_eq!(4, trapdoor.nodes[0].level);
         let mut these_leaves = super::leaves(&trapdoor);
@@ -825,7 +821,7 @@ pub(crate) mod tests {
         }
         // 0b1110
         let min_c = 0b1110_u32;
-        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(min_c), Some(0b1111), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 1);
         //assert_eq!(3, trapdoor.nodes[0].level);
         //assert_eq!(2, trapdoor.nodes[1].level);
@@ -839,11 +835,10 @@ pub(crate) mod tests {
         for i in 0..(16 - min_c) as usize {
             assert_eq!(exp_leaves[i], these_leaves[i]);
         }
-        Ok(())
     }
 
     #[test]
-    fn test_trapdoor_range() -> anyhow::Result<()> {
+    fn test_trapdoor_range() {
         let mut rng = CsRng::new();
         let k = rng.random_256_bits();
         let level = 4;
@@ -854,7 +849,7 @@ pub(crate) mod tests {
         //
         let min_c = 0b0001_u32;
         let max_c = 0b1110_u32;
-        let trapdoor = super::trapdoor_range(Some(min_c), Some(max_c), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(min_c), Some(max_c), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 6, "1 len");
         let mut these_leaves = super::leaves(&trapdoor);
         these_leaves.sort_unstable();
@@ -868,7 +863,7 @@ pub(crate) mod tests {
         //
         let min_c = 0b1001_u32;
         let max_c = 0b1100_u32;
-        let trapdoor = super::trapdoor_range(Some(min_c), Some(max_c), None, &k, level)?;
+        let trapdoor = super::trapdoor_range(Some(min_c), Some(max_c), None, &k, level);
         assert_eq!(trapdoor.nodes.len(), 3, "2 len");
         let mut these_leaves = super::leaves(&trapdoor);
         these_leaves.sort_unstable();
@@ -878,12 +873,10 @@ pub(crate) mod tests {
         for i in 0..(max_c - min_c + 1) as usize {
             assert_eq!(exp_leaves[i], these_leaves[i], "2 leave {}", i);
         }
-
-        Ok(())
     }
 
     #[test]
-    fn test_serialization() -> anyhow::Result<()> {
+    fn test_serialization() {
         let mut cs_rng = CsRng::new();
         let mut rng = rand::thread_rng();
         let num_nodes = rng.gen_range(1..200);
@@ -896,13 +889,13 @@ pub(crate) mod tests {
         }
         let trapdoor = Trapdoor { nodes };
         let b: Vec<u8> = trapdoor.to_bytes();
-        let recovered: Trapdoor = Trapdoor::from_bytes(b.as_slice())?;
+        let recovered: Trapdoor =
+            Trapdoor::from_bytes(b.as_slice()).expect("failed trapdoor from bytes");
         assert_eq!(num_nodes, recovered.nodes.len());
         for i in 0..num_nodes {
             assert_eq!(&(trapdoor.nodes[i]).k, &recovered.nodes[i].k);
             assert_eq!(trapdoor.nodes[i].level, recovered.nodes[i].level);
         }
-        Ok(())
     }
 
     #[test]

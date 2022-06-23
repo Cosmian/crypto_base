@@ -16,10 +16,10 @@ pub mod primes;
 #[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
 pub mod sodium_bindings;
 
-pub use crate::error::Error;
+pub use crate::error::CryptoBaseError;
 
 pub trait KeyTrait: Sized + Clone {
     const LENGTH: usize;
     fn to_bytes(&self) -> Vec<u8>;
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, Error>;
+    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, CryptoBaseError>;
 }

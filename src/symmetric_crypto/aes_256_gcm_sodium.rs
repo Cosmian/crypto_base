@@ -10,7 +10,7 @@ use crate::{
         randombytes_buf, sodium_increment, sodium_init,
     },
     symmetric_crypto::{SymmetricCrypto, MIN_DATA_LENGTH},
-    Error,
+    CryptoBaseError,
 };
 
 pub const KEY_LENGTH: usize = crypto_aead_aes256gcm_KEYBYTES as usize;
@@ -20,13 +20,14 @@ pub const MAC_LENGTH: usize = crypto_aead_aes256gcm_ABYTES as usize;
 pub type Key = crate::symmetric_crypto::key::Key<KEY_LENGTH>;
 pub type Nonce = crate::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
 
-pub fn init() -> anyhow::Result<()> {
+pub fn init() -> Result<(), CryptoBaseError> {
     unsafe {
         sodium_init();
-        anyhow::ensure!(
-            crypto_aead_aes256gcm_is_available() == 1,
-            "This CPU does not support the AES256-GCM implementation"
-        );
+        if crypto_aead_aes256gcm_is_available() != 1 {
+            return Err(CryptoBaseError::HardwareCapability(
+                "This CPU does not support the AES256-GCM implementation".to_string(),
+            ));
+        }
     }
     Ok(())
 }
@@ -99,9 +100,9 @@ pub fn encrypt_combined(
     bytes: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> anyhow::Result<Vec<u8>> {
+) -> Result<Vec<u8>, CryptoBaseError> {
     let cipher_length = bytes.len() + MAC_LENGTH;
-    let mut result: Vec<u8> = vec![0; cipher_length];
+    let mut result = vec![0; cipher_length];
     unsafe {
         let (ad, ad_len) = match additional_data {
             Some(b) => (b.as_ptr(), b.len() as u64),
@@ -119,7 +120,11 @@ pub fn encrypt_combined(
             key.0.as_ptr(),
         );
 
-        anyhow::ensure!(ret == 0, "encryption failed");
+        if ret != 0 {
+            return Err(CryptoBaseError::EncryptionError(
+                "Combined encryption failed".to_string(),
+            ));
+        }
     }
     Ok(result)
 }
@@ -138,10 +143,10 @@ pub fn encrypt_detached(
     bytes: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+) -> Result<(Vec<u8>, Vec<u8>), CryptoBaseError> {
     let cipher_length = bytes.len();
-    let mut result: Vec<u8> = vec![0; cipher_length];
-    let mut mac: Vec<u8> = vec![0; MAC_LENGTH];
+    let mut result = vec![0; cipher_length];
+    let mut mac = vec![0; MAC_LENGTH];
     let mut mac_len = 0_u64;
     unsafe {
         let (ad, ad_len) = match additional_data {
@@ -161,14 +166,17 @@ pub fn encrypt_detached(
             key.0.as_ptr(),
         );
 
-        anyhow::ensure!(ret == 0, "encryption failed");
+        if ret != 0 {
+            return Err(CryptoBaseError::EncryptionError(
+                "Detached encryption failed".to_string(),
+            ));
+        }
 
-        anyhow::ensure!(
-            mac_len == MAC_LENGTH as u64,
-            "Invalid MAC length: {}. Expected: {}",
-            mac_len,
-            MAC_LENGTH
-        );
+        if mac_len != MAC_LENGTH as u64 {
+            return Err(CryptoBaseError::InvalidSize(format!(
+                "Invalid MAC length: {mac_len}. Expected: {MAC_LENGTH}"
+            )));
+        }
     }
     Ok((result, mac))
 }
@@ -184,16 +192,17 @@ pub fn decrypt_combined(
     bytes: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> anyhow::Result<Vec<u8>> {
+) -> Result<Vec<u8>, CryptoBaseError> {
     if bytes.is_empty() {
         return Ok(vec![]);
     }
-    anyhow::ensure!(
-        bytes.len() > MAC_LENGTH,
-        "decryption failed - data too short"
-    );
+    if bytes.len() <= MAC_LENGTH {
+        return Err(CryptoBaseError::InvalidSize(
+            "Not enough data for combined decryption".to_string(),
+        ));
+    }
     let clear_text_length = bytes.len() - MAC_LENGTH;
-    let mut result: Vec<u8> = vec![0; clear_text_length];
+    let mut result = vec![0; clear_text_length];
     unsafe {
         let (ad, ad_len) = match additional_data {
             Some(b) => (b.as_ptr(), b.len() as u64),
@@ -211,7 +220,11 @@ pub fn decrypt_combined(
             key.0.as_ptr(),
         );
 
-        anyhow::ensure!(ret == 0, "decryption failed");
+        if ret != 0 {
+            return Err(CryptoBaseError::DecryptionError(
+                "Combined decryption failed".to_string(),
+            ));
+        }
     }
     Ok(result)
 }
@@ -229,14 +242,15 @@ pub fn decrypt_detached(
     mac: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> anyhow::Result<Vec<u8>> {
+) -> Result<Vec<u8>, CryptoBaseError> {
     if bytes.is_empty() {
         return Ok(vec![]);
     }
-    anyhow::ensure!(
-        bytes.len() > MAC_LENGTH,
-        "decryption failed - data too short"
-    );
+    if bytes.len() <= MAC_LENGTH {
+        return Err(CryptoBaseError::InvalidSize(
+            "Not enough data for detached decryption".to_string(),
+        ));
+    }
     let clear_text_length = bytes.len();
     let mut result: Vec<u8> = vec![0; clear_text_length];
     unsafe {
@@ -256,12 +270,16 @@ pub fn decrypt_detached(
             key.0.as_ptr(),
         );
 
-        anyhow::ensure!(ret == 0, "decryption failed");
+        if ret != 0 {
+            return Err(CryptoBaseError::DecryptionError(
+                "Detached decryption failed".to_string(),
+            ));
+        }
     }
     Ok(result)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Aes256GcmCrypto;
 
 impl SymmetricCrypto for Aes256GcmCrypto {
@@ -284,15 +302,15 @@ impl SymmetricCrypto for Aes256GcmCrypto {
         bytes: &[u8],
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         let (ad, ad_len) = match additional_data {
             Some(b) => (b.as_ptr(), b.len() as u64),
             None => (std::ptr::null(), 0_u64),
         };
         let cipher_length = bytes.len() + MAC_LENGTH;
-        let mut result: Vec<u8> = vec![0; cipher_length];
+        let mut result = vec![0; cipher_length];
         unsafe {
-            if crypto_aead_aes256gcm_encrypt(
+            let ret = crypto_aead_aes256gcm_encrypt(
                 result.as_mut_ptr(),
                 std::ptr::null_mut(),
                 bytes.as_ptr(),
@@ -302,9 +320,11 @@ impl SymmetricCrypto for Aes256GcmCrypto {
                 std::ptr::null(),
                 nonce.0.as_ref().as_ptr(),
                 key.0.as_ptr(),
-            ) != 0
-            {
-                return Err(Error::EncryptionError("encryption failed".to_string()));
+            );
+            if ret != 0 {
+                return Err(CryptoBaseError::EncryptionError(
+                    "AEAD AES256 GCM encryption failed".to_string(),
+                ));
             };
         }
         Ok(result)
@@ -315,23 +335,23 @@ impl SymmetricCrypto for Aes256GcmCrypto {
         bytes: &[u8],
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, Error> {
+    ) -> Result<Vec<u8>, CryptoBaseError> {
         if bytes.is_empty() {
             return Ok(vec![]);
         }
         if bytes.len() < MAC_LENGTH + MIN_DATA_LENGTH {
-            return Err(Error::DecryptionError(
-                "decryption failed - data too short".to_string(),
+            return Err(CryptoBaseError::DecryptionError(
+                "Not enough data for AEAD AES256 GCM decryption".to_string(),
             ));
         }
         let clear_text_length = bytes.len() - MAC_LENGTH;
-        let mut result: Vec<u8> = vec![0; clear_text_length];
-        if unsafe {
+        let mut result = vec![0; clear_text_length];
+        unsafe {
             let (ad, ad_len) = match additional_data {
                 Some(b) => (b.as_ptr(), b.len() as u64),
                 None => (std::ptr::null(), 0_u64),
             };
-            crypto_aead_aes256gcm_decrypt(
+            let ret = crypto_aead_aes256gcm_decrypt(
                 result.as_mut_ptr(),
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
@@ -341,10 +361,12 @@ impl SymmetricCrypto for Aes256GcmCrypto {
                 ad_len,
                 nonce.0.as_ref().as_ptr(),
                 key.0.as_ptr(),
-            )
-        } != 0
-        {
-            return Err(Error::DecryptionError("decryption failed".to_string()));
+            );
+            if ret != 0 {
+                return Err(CryptoBaseError::DecryptionError(
+                    "AEAD AES256 GCM decryption failed".to_string(),
+                ));
+            }
         }
         Ok(result)
     }
@@ -353,9 +375,19 @@ impl SymmetricCrypto for Aes256GcmCrypto {
 #[cfg(test)]
 mod tests {
 
-    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait};
-
-    use super::*;
+    use crate::{
+        entropy::CsRng,
+        symmetric_crypto::{
+            aes_256_gcm_sodium::{
+                decrypt_combined, decrypt_detached, encrypt_combined, encrypt_detached,
+                generate_key, generate_nonce, generate_random_bytes, increment_nonce,
+                Aes256GcmCrypto, Key, Nonce, KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH,
+            },
+            nonce::NonceTrait,
+            SymmetricCrypto,
+        },
+        CryptoBaseError,
+    };
 
     #[test]
     fn test_key() {
@@ -394,7 +426,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encryption_decryption_combined() -> anyhow::Result<()> {
+    fn test_encryption_decryption_combined() -> Result<(), CryptoBaseError> {
         let key = generate_key();
         let bytes = generate_random_bytes(8192);
         let iv = generate_nonce();
@@ -416,7 +448,7 @@ mod tests {
 
     #[ignore]
     #[test]
-    fn test_encryption_decryption_detached() -> anyhow::Result<()> {
+    fn test_encryption_decryption_detached() -> Result<(), CryptoBaseError> {
         let key = generate_key();
         let bytes = generate_random_bytes(8192);
         let iv = generate_nonce();

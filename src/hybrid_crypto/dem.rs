@@ -1,4 +1,4 @@
-use crate::{symmetric_crypto::SymmetricCrypto, Error, KeyTrait};
+use crate::{symmetric_crypto::SymmetricCrypto, CryptoBaseError, KeyTrait};
 use rand_core::{CryptoRng, RngCore};
 
 pub trait Dem: SymmetricCrypto {
@@ -16,7 +16,7 @@ pub trait Dem: SymmetricCrypto {
         secret_key: &[u8],
         additional_data: Option<&[u8]>,
         message: &[u8],
-    ) -> Result<Vec<u8>, Error>;
+    ) -> Result<Vec<u8>, CryptoBaseError>;
 
     /// Decapsulate using a KEM-generated secret key `K`.
     ///
@@ -27,5 +27,5 @@ pub trait Dem: SymmetricCrypto {
         secret_key: &[u8],
         additional_data: Option<&[u8]>,
         encapsulation: &[u8],
-    ) -> Result<Vec<u8>, Error>;
+    ) -> Result<Vec<u8>, CryptoBaseError>;
 }
