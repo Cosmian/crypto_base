@@ -28,7 +28,7 @@ use std::{
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
-#[serde(try_from = "Vec<u8>", into = "Vec<u8>")]
+#[serde(try_from = "&[u8]", into = "Vec<u8>")]
 pub struct X25519PrivateKey(Scalar);
 
 impl X25519PrivateKey {
@@ -51,7 +51,7 @@ impl KeyTrait for X25519PrivateKey {
         self.as_bytes().to_vec()
     }
 
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, CryptoBaseError> {
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
         Self::try_from(bytes)
     }
 }
@@ -92,7 +92,7 @@ impl From<X25519PrivateKey> for Vec<u8> {
 impl TryFrom<&str> for X25519PrivateKey {
     type Error = CryptoBaseError;
 
-    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         let bytes = hex::decode(value)?;
         Self::try_from(bytes)
     }
@@ -106,7 +106,7 @@ impl Display for X25519PrivateKey {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
-#[serde(try_from = "Vec<u8>", into = "Vec<u8>")]
+#[serde(try_from = "&[u8]", into = "Vec<u8>")]
 pub struct X25519PublicKey(RistrettoPoint);
 
 impl X25519PublicKey {
@@ -121,10 +121,10 @@ impl KeyTrait for X25519PublicKey {
 
     #[must_use]
     fn to_bytes(&self) -> Vec<u8> {
-        self.0.compress().to_bytes().to_vec()
+        self.0.compress().as_bytes().to_vec()
     }
 
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, CryptoBaseError> {
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
         Self::try_from(bytes)
     }
 }
@@ -174,7 +174,7 @@ impl From<X25519PublicKey> for Vec<u8> {
 impl TryFrom<&str> for X25519PublicKey {
     type Error = CryptoBaseError;
 
-    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         let bytes = hex::decode(value)?;
         Self::try_from(bytes.as_slice())
     }
@@ -339,7 +339,7 @@ impl X25519Crypto {
         // create a 64 bytes master key using gʸ and the shared point
         let mut master = [0_u8; 2 * <X25519PublicKey>::LENGTH];
         master[..<X25519PublicKey>::LENGTH].clone_from_slice(&ephemeral_public_key.to_bytes());
-        master[<X25519PublicKey>::LENGTH..].clone_from_slice(&point.compress().to_bytes());
+        master[<X25519PublicKey>::LENGTH..].clone_from_slice(point.compress().as_bytes());
         //Derive a 256 bit key using HKDF
         Ok(hkdf_256(&master, 32, HKDF_INFO)?
             .try_into()
@@ -393,8 +393,8 @@ impl AsymmetricCrypto for X25519Crypto {
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
         _: Option<&Self::EncryptionParameters>,
     ) -> Result<(S::Key, Vec<u8>), CryptoBaseError> {
-        let bytes: Vec<u8> = self.generate_random_bytes(S::Key::LENGTH);
-        let symmetric_key = S::Key::try_from_bytes(bytes)?;
+        let bytes = self.generate_random_bytes(S::Key::LENGTH);
+        let symmetric_key = S::Key::try_from_bytes(&bytes)?;
         let encrypted_key = self.encrypt(public_key, None, &symmetric_key.to_bytes())?;
         Ok((symmetric_key, encrypted_key))
     }
@@ -405,10 +405,10 @@ impl AsymmetricCrypto for X25519Crypto {
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
         data: &[u8],
     ) -> Result<S::Key, CryptoBaseError> {
-        S::Key::try_from_bytes(
-            self.decrypt(private_key, data)
-                .map_err(|err| CryptoBaseError::DecryptionError(err.to_string()))?,
-        )
+        let decrypted = self
+            .decrypt(private_key, data)
+            .map_err(|err| CryptoBaseError::DecryptionError(err.to_string()))?;
+        S::Key::try_from_bytes(&decrypted)
     }
 
     /// A utility function to generate random bytes from an uniform distribution
@@ -442,7 +442,7 @@ impl AsymmetricCrypto for X25519Crypto {
             aes_256_gcm_pure::Nonce::new(&mut self.rng.lock().expect("a lock failed").deref_mut());
         //prepare the result
         let mut result: Vec<u8> = Vec::with_capacity(data.len() + <Self>::ENCRYPTION_OVERHEAD);
-        result.extend_from_slice(&ephemeral_keypair.public_key.to_bytes());
+        result.extend(ephemeral_keypair.public_key.to_bytes());
         result.extend_from_slice(&nonce.0);
         result.extend(Aes256GcmCrypto::encrypt(&sym_key, data, &nonce, None)?);
         Ok(result)
@@ -480,7 +480,7 @@ impl AsymmetricCrypto for X25519Crypto {
         let sym_key = aes_256_gcm_pure::Key::from(sym_key_bytes);
         let nonce_bytes = &data
             [<X25519PublicKey>::LENGTH..<X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH];
-        let nonce = aes_256_gcm_pure::Nonce::try_from_bytes(nonce_bytes.to_vec())?;
+        let nonce = aes_256_gcm_pure::Nonce::try_from_bytes(nonce_bytes)?;
         Aes256GcmCrypto::decrypt(
             &sym_key,
             &data[<X25519PublicKey>::LENGTH + aes_256_gcm_pure::NONCE_LENGTH..],

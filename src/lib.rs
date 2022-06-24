@@ -21,5 +21,5 @@ pub use crate::error::CryptoBaseError;
 pub trait KeyTrait: Sized + Clone {
     const LENGTH: usize;
     fn to_bytes(&self) -> Vec<u8>;
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, CryptoBaseError>;
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError>;
 }

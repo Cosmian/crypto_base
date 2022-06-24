@@ -192,7 +192,7 @@ where
         }
         //TODO: use transmute to make this faster ?
         Ok(Self {
-            nonce: <<S as SymmetricCrypto>::Nonce>::try_from_bytes(bytes.to_vec())?,
+            nonce: <<S as SymmetricCrypto>::Nonce>::try_from_bytes(bytes)?,
         })
     }
 
