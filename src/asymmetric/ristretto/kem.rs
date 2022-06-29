@@ -39,7 +39,7 @@ impl Kem for X25519Crypto {
             <Self::KeyPair as KeyPair>::PublicKey::LENGTH
                 + <Self::KeyPair as KeyPair>::PrivateKey::LENGTH,
         );
-        b.extend_from_slice(&shared_secret);
+        b.extend(shared_secret);
         b.extend_from_slice(&encapsulation);
         let secret_key = kdf::hkdf_256(&b, secret_key_length, HKDF_INFO)?;
         Ok((secret_key, encapsulation))

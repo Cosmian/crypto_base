@@ -11,7 +11,7 @@ use std::{
 pub trait NonceTrait: Sized + Clone {
     const LENGTH: usize;
     fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self;
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, CryptoBaseError>;
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError>;
     #[must_use]
     fn increment(&self, increment: usize) -> Self;
     #[must_use]
@@ -31,7 +31,7 @@ impl<const NONCE_LENGTH: usize> NonceTrait for Nonce<NONCE_LENGTH> {
         Self(bytes)
     }
 
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, CryptoBaseError> {
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
         let len = bytes.len();
         let b: [u8; NONCE_LENGTH] = bytes.try_into().map_err(|_| CryptoBaseError::SizeError {
             given: len,
@@ -65,7 +65,7 @@ impl<const NONCE_LENGTH: usize> TryFrom<Vec<u8>> for Nonce<NONCE_LENGTH> {
     type Error = CryptoBaseError;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from_bytes(bytes)
+        Self::try_from_bytes(&bytes)
     }
 }
 
@@ -73,7 +73,7 @@ impl<'a, const NONCE_LENGTH: usize> TryFrom<&'a [u8]> for Nonce<NONCE_LENGTH> {
     type Error = CryptoBaseError;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        Self::try_from_bytes(bytes.to_vec())
+        Self::try_from_bytes(bytes)
     }
 }
 

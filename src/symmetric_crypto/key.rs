@@ -8,7 +8,7 @@ use std::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(try_from = "Vec<u8>", into = "Vec<u8>")]
+#[serde(try_from = "&[u8]", into = "Vec<u8>")]
 pub struct Key<const KEY_LENGTH: usize>(pub [u8; KEY_LENGTH]);
 
 impl<const KEY_LENGTH: usize> Key<KEY_LENGTH> {
@@ -31,7 +31,7 @@ impl<const KEY_LENGTH: usize> KeyTrait for Key<KEY_LENGTH> {
         self.as_bytes().to_vec()
     }
 
-    fn try_from_bytes(bytes: Vec<u8>) -> Result<Self, CryptoBaseError> {
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
         Self::try_from(bytes)
     }
 }

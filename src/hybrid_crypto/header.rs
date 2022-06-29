@@ -135,7 +135,7 @@ where
 
         let metadata = if scanner.has_more() {
             // Nonce
-            let nonce = S::Nonce::try_from_bytes(scanner.next(S::Nonce::LENGTH)?.to_vec())?;
+            let nonce = S::Nonce::try_from_bytes(scanner.next(S::Nonce::LENGTH)?)?;
 
             // encrypted metadata
             let encrypted_metadata_size = scanner.read_u32()? as usize;
