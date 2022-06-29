@@ -21,3 +21,9 @@ pub enum CryptoBaseError {
     #[error("{0}")]
     HardwareCapability(String),
 }
+
+impl From<std::array::TryFromSliceError> for CryptoBaseError {
+    fn from(e: std::array::TryFromSliceError) -> Self {
+        CryptoBaseError::InvalidSize(e.to_string())
+    }
+}
