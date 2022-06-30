@@ -1,3 +1,5 @@
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
 use aes::{
     cipher::generic_array::GenericArray, Aes128, Aes192, Aes256, BlockDecrypt, BlockEncrypt,
     NewBlockCipher,
@@ -6,42 +8,36 @@ use aes::{
 use crate::CryptoBaseError;
 
 const DEFAULT_IV: u64 = 0xa6a6a6a6a6a6a6a6;
+const DEFAULT_RFC5649_CONST: u32 = 0xA65959A6u32;
 
 /// Build the iv according to the RFC 5649
 ///
 /// :data_size: is the size of the key to wrap
 fn build_iv(data_size: usize) -> u64 {
-    let l = 0xA65959A6u32;
+    let l = u64::from(DEFAULT_RFC5649_CONST);
     let r = u32::to_le(data_size as u32);
 
-    (l as u64) << 32 | (r as u64)
+    l << 32 | u64::from(r)
 }
 
-/// Check if an iv value is appropriate according to the RFC 5649
+/// Check if `iv` value is appropriate according to the RFC 5649
 fn check_iv(iv: u64, data: &[u8]) -> bool {
     let data_size: usize = data.len();
-    if (iv >> 32) as u32 != 0xA65959A6u32 {
+    if (iv >> 32) as u32 != DEFAULT_RFC5649_CONST {
         return false;
     }
 
-    let real_data_size = (iv as u32) as usize;
-    if real_data_size > data_size || real_data_size as usize <= (data_size - 8) {
+    let real_data_size = u32::to_le(iv as u32) as usize;
+    if real_data_size > data_size || real_data_size <= (data_size - 8) {
         return false;
     }
 
-    let paddig_size = data_size - real_data_size;
-    if data[real_data_size..] != vec![0u8; paddig_size] {
-        return false;
-    }
-
-    true
+    data[real_data_size..].iter().all(|&x| x == 0)
 }
 
 /// Wrap a plain text of variable length
 ///
 /// Following RFC 5649
-#[allow(non_camel_case_types)]
-#[allow(non_snake_case)]
 pub fn wrap(plain: &[u8], kek: &[u8]) -> Result<Vec<u8>, CryptoBaseError> {
     let n = plain.len();
     let m = n % 8;
@@ -91,8 +87,6 @@ pub fn wrap(plain: &[u8], kek: &[u8]) -> Result<Vec<u8>, CryptoBaseError> {
 /// Unwrap to a plain text of variable length
 ///
 /// Following RFC 5649
-#[allow(non_camel_case_types)]
-#[allow(non_snake_case)]
 pub fn unwrap(ciphertext: &[u8], kek: &[u8]) -> Result<Vec<u8>, CryptoBaseError> {
     let n = ciphertext.len();
 
@@ -159,8 +153,6 @@ pub fn unwrap(ciphertext: &[u8], kek: &[u8]) -> Result<Vec<u8>, CryptoBaseError>
 /// Wrap a plain text of a 64-bits modulo size
 ///
 /// Following RFC 3394  
-#[allow(non_camel_case_types)]
-#[allow(non_snake_case)]
 pub fn wrap_64(plain: &[u8], kek: &[u8]) -> Result<Vec<u8>, CryptoBaseError> {
     _wrap_64(plain, kek, None)
 }
@@ -168,12 +160,10 @@ pub fn wrap_64(plain: &[u8], kek: &[u8]) -> Result<Vec<u8>, CryptoBaseError> {
 /// Wrap a plain text of a 64-bits modulo size
 ///
 /// Following RFC 3394  
-#[allow(non_camel_case_types)]
-#[allow(non_snake_case)]
 fn _wrap_64(plain: &[u8], kek: &[u8], iv: Option<u64>) -> Result<Vec<u8>, CryptoBaseError> {
     let n = plain.len();
 
-    if plain.len() % 8 != 0 {
+    if n % 8 != 0 {
         return Err(CryptoBaseError::InvalidSize(
             "The plaintext size should be a multiple of 8".to_string(),
         ));
@@ -183,7 +173,7 @@ fn _wrap_64(plain: &[u8], kek: &[u8], iv: Option<u64>) -> Result<Vec<u8>, Crypto
     let n = n / 8;
 
     let mut A = iv.unwrap_or(DEFAULT_IV);
-    let mut R: Vec<u64> = vec![];
+    let mut R = Vec::with_capacity(n);
 
     for chunck in plain.chunks(8) {
         R.push(u64::from_be_bytes(chunck.try_into()?));
@@ -192,7 +182,7 @@ fn _wrap_64(plain: &[u8], kek: &[u8], iv: Option<u64>) -> Result<Vec<u8>, Crypto
     for j in 0..6 {
         for (i, r) in R.iter_mut().enumerate().take(n) {
             // B = AES(K, A | R[i])
-            let I: u128 = (A as u128) << 64 | (*r as u128);
+            let I: u128 = u128::from(A) << 64 | u128::from(*r);
             let mut B = GenericArray::from(I.to_be_bytes());
 
             match kek.len() {
@@ -226,8 +216,7 @@ fn _wrap_64(plain: &[u8], kek: &[u8], iv: Option<u64>) -> Result<Vec<u8>, Crypto
         }
     }
 
-    let mut C = vec![];
-    C.append(&mut A.to_be_bytes().to_vec());
+    let mut C = A.to_be_bytes().to_vec();
     for r in R {
         C.append(&mut r.to_be_bytes().to_vec());
     }
@@ -238,8 +227,6 @@ fn _wrap_64(plain: &[u8], kek: &[u8], iv: Option<u64>) -> Result<Vec<u8>, Crypto
 /// Unwrap to a plain text of a 64-bits modulo size
 ///
 /// Following RFC 3394
-#[allow(non_camel_case_types)]
-#[allow(non_snake_case)]
 pub fn unwrap_64(cipher: &[u8], kek: &[u8]) -> Result<Vec<u8>, CryptoBaseError> {
     let (iv, plain) = _unwrap_64(cipher, kek)?;
 
@@ -252,8 +239,6 @@ pub fn unwrap_64(cipher: &[u8], kek: &[u8]) -> Result<Vec<u8>, CryptoBaseError> 
     Ok(plain)
 }
 
-#[allow(non_camel_case_types)]
-#[allow(non_snake_case)]
 fn _unwrap_64(ciphertext: &[u8], kek: &[u8]) -> Result<(u64, Vec<u8>), CryptoBaseError> {
     let n = ciphertext.len();
 
@@ -266,9 +251,9 @@ fn _unwrap_64(ciphertext: &[u8], kek: &[u8]) -> Result<(u64, Vec<u8>), CryptoBas
     // Number of 64-bit blocks
     let n = n / 8 - 1;
 
-    let mut R: Vec<u64> = vec![];
-    for chunck in ciphertext.chunks(8) {
-        R.push(u64::from_be_bytes(chunck.try_into()?));
+    let mut R: Vec<u64> = Vec::with_capacity(n + 1);
+    for chunk in ciphertext.chunks(8) {
+        R.push(u64::from_be_bytes(chunk.try_into()?));
     }
 
     let mut A = R[0];
@@ -278,7 +263,7 @@ fn _unwrap_64(ciphertext: &[u8], kek: &[u8]) -> Result<(u64, Vec<u8>), CryptoBas
             let t = ((n * j) + (n - i)) as u64;
 
             // B = AES-1(K, (A ^ t) | R[i]) where t = n*j+i
-            let I: u128 = ((A ^ t) as u128) << 64 | (*r as u128);
+            let I: u128 = u128::from(A ^ t) << 64 | u128::from(*r);
 
             let mut B = GenericArray::from(I.to_be_bytes());
 
@@ -323,7 +308,7 @@ fn _unwrap_64(ciphertext: &[u8], kek: &[u8]) -> Result<(u64, Vec<u8>), CryptoBas
 
 #[cfg(test)]
 mod tests {
-    use crate::wrapping::{unwrap, unwrap_64, wrap, wrap_64};
+    use crate::key_wrapping::{unwrap, unwrap_64, wrap, wrap_64};
 
     #[test]
     pub fn test_wrap64() {
