@@ -15,8 +15,7 @@ This crate implements crypto primitives which are used in many other Cosmian cry
 - entropy: Cryptographically secure pseudo random generators with normal and Gaussian distributions
 - [brc_cprf](#constrained-prf): BRC, a constrained PRF (see below)
 - [aes_hash_mmo](#aes-as-a-hash-function): using the native implementation of AES 256 as a hash function.
-- timed_cache: a thread-safe memory cache where items expire after a certain time
-
+- key wrapping/unwrapping by following [rfc5649](https://www.rfc-editor.org/rfc/rfc5649) and [rfc3394](https://datatracker.ietf.org/doc/html/rfc3394)
 
 It also exposes a few traits, `SymmetricCrypto` and `AsymmetricCrypto` (aka Public Key Crypto), `KEM`, `DEM`,... which are used as building blocks for other constructions.
 
