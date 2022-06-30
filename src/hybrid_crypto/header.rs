@@ -199,12 +199,12 @@ where
     }
 
     /// The clear text symmetric key generated in the header
-    pub const fn symmetric_key(&self) -> &S::Key {
+    pub fn symmetric_key(&self) -> &S::Key {
         &self.symmetric_key
     }
 
     /// The meta data in the header
-    pub const fn meta_data(&self) -> &Metadata {
+    pub fn meta_data(&self) -> &Metadata {
         &self.metadata
     }
 }
