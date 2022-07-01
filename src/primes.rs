@@ -4,7 +4,7 @@ use crate::CryptoBaseError;
 /// In each case these are proven primes (proven using UBASIC's  APRT-CL).
 ///
 /// Note that 2n-k will be an n bit number (for these k's).
-/// see https://primes.utm.edu/lists/2small/0bit.html
+/// see `<https://primes.utm.edu/lists/2small/0bit.html>`
 pub fn closest_primes_to_power_of_2(n: usize) -> Result<[u32; 10], CryptoBaseError> {
     if n < 2 {
         return Err(CryptoBaseError::InvalidSize(format!(

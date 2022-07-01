@@ -426,7 +426,7 @@ impl AsymmetricCrypto for X25519Crypto {
     }
 
     /// Encrypt a message using ECIES
-    /// https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme
+    /// `<https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme>`
     fn encrypt(
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
@@ -458,7 +458,7 @@ impl AsymmetricCrypto for X25519Crypto {
     }
 
     /// Decrypt a message using ECIES
-    /// https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme
+    /// `<https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme>`
     fn decrypt(
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
@@ -510,11 +510,11 @@ mod test {
             key_pair_1.public_key.to_bytes()
         );
         assert_eq!(
-            X25519PrivateKey::LENGTH as usize,
+            X25519PrivateKey::LENGTH,
             key_pair_1.private_key.0.as_bytes().len()
         );
         assert_eq!(
-            X25519PublicKey::LENGTH as usize,
+            X25519PublicKey::LENGTH,
             key_pair_1.public_key.to_bytes().len()
         );
         let key_pair_2 = crypto.generate_key_pair(None).unwrap();

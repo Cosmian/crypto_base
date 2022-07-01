@@ -7,7 +7,7 @@ use aes::{
 /// Implements the scheme of  S. Matyas, C. Meyer and J. Oseas
 /// Hᵢ = E(Hᵢ₋₁, Xᵢ)^Xᵢ^Hᵢ₋₁ where the AES
 /// encryption of plaintext X with key K will is denoted with E(K, X)
-/// see https://www.esat.kuleuven.be/cosic/publications/article-48.pdf
+/// see `<https://www.esat.kuleuven.be/cosic/publications/article-48.pdf>`
 /// Since the block size is 16 and we need to encrypt 32 bytes (top get a 256
 /// bit hash) we use AES in counter mode to encrypt two blocks of 16 bytes
 pub struct AesMmo {

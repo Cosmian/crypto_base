@@ -62,12 +62,12 @@ where
                 encrypted_bytes.len(),
             )));
         }
-        let block_header_len: usize = BlockHeader::<S>::LENGTH;
+        let block_header_len = BlockHeader::<S>::LENGTH;
         // recover the block header and regenerate the IV
         let block_header = BlockHeader::<S>::parse(&encrypted_bytes[0..block_header_len])?;
         let mut ad = uid.to_vec();
-        // Warning: usize can be interpret as u32 on 32-bits CPU-architecture.
-        // The u64-cast prevents build on those 32-bits machine or on
+        // Warning: `usize` can be interpreted as `u32` on 32-bits CPU-architecture.
+        // The `u64`-cast prevents build on those 32-bits machine or on
         // `wasm32-unknown-unknown` builds.
         ad.extend(&(block_number as u64).to_le_bytes());
         // decrypt
@@ -97,8 +97,8 @@ where
         // refresh the nonce
         let nonce = S::Nonce::new(rng);
         let mut ad = uid.to_vec();
-        // Warning: usize can be interpret as u32 on 32-bits CPU-architecture.
-        // The u64-cast prevents build on those 32-bits machine or on
+        // Warning: `usize` can be interpreted as `u32` on 32-bits CPU-architecture.
+        // The `u64`-cast prevents build on those 32-bits machine or on
         // `wasm32-unknown-unknown` builds.
         ad.extend(&(block_number as u64).to_le_bytes());
         // write the header

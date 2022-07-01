@@ -7,12 +7,12 @@ use aes::{
 
 use crate::CryptoBaseError;
 
-const DEFAULT_IV: u64 = 0xa6a6a6a6a6a6a6a6;
-const DEFAULT_RFC5649_CONST: u32 = 0xA65959A6u32;
+const DEFAULT_IV: u64 = 0xa6a6_a6a6_a6a6_a6a6;
+const DEFAULT_RFC5649_CONST: u32 = 0xA659_59A6_u32;
 
 /// Build the iv according to the RFC 5649
 ///
-/// :data_size: is the size of the key to wrap
+/// `data_size` is the size of the key to wrap
 fn build_iv(data_size: usize) -> u64 {
     let l = u64::from(DEFAULT_RFC5649_CONST);
     let r = u32::to_le(data_size as u32);
@@ -152,14 +152,14 @@ pub fn unwrap(ciphertext: &[u8], kek: &[u8]) -> Result<Vec<u8>, CryptoBaseError>
 
 /// Wrap a plain text of a 64-bits modulo size
 ///
-/// Following RFC 3394  
+/// Following RFC 3394
 pub fn wrap_64(plain: &[u8], kek: &[u8]) -> Result<Vec<u8>, CryptoBaseError> {
     _wrap_64(plain, kek, None)
 }
 
 /// Wrap a plain text of a 64-bits modulo size
 ///
-/// Following RFC 3394  
+/// Following RFC 3394
 fn _wrap_64(plain: &[u8], kek: &[u8], iv: Option<u64>) -> Result<Vec<u8>, CryptoBaseError> {
     let n = plain.len();
 
@@ -175,8 +175,8 @@ fn _wrap_64(plain: &[u8], kek: &[u8], iv: Option<u64>) -> Result<Vec<u8>, Crypto
     let mut A = iv.unwrap_or(DEFAULT_IV);
     let mut R = Vec::with_capacity(n);
 
-    for chunck in plain.chunks(8) {
-        R.push(u64::from_be_bytes(chunck.try_into()?));
+    for chunk in plain.chunks(8) {
+        R.push(u64::from_be_bytes(chunk.try_into()?));
     }
 
     for j in 0..6 {
