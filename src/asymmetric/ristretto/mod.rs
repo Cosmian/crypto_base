@@ -426,7 +426,7 @@ impl AsymmetricCrypto for X25519Crypto {
     }
 
     /// Encrypt a message using ECIES
-    /// https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme
+    /// `<https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme>`
     fn encrypt(
         &self,
         public_key: &<Self::KeyPair as KeyPair>::PublicKey,
@@ -458,7 +458,7 @@ impl AsymmetricCrypto for X25519Crypto {
     }
 
     /// Decrypt a message using ECIES
-    /// https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme
+    /// `<https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme>`
     fn decrypt(
         &self,
         private_key: &<Self::KeyPair as KeyPair>::PrivateKey,
