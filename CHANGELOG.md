@@ -3,12 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 ---
-## [2.0.0] - 2022-06-21
+## [2.0.0] - 2022-07-01
 ### Added
+- key wrapping ([rfc5649](https://www.rfc-editor.org/rfc/rfc5649) and [rfc3394](https://datatracker.ietf.org/doc/html/rfc3394))
+- CI for `libsodium` feature
 ### Changed
- - change error handling, using `thiserror` (for libs) instead of `eyre` (for apps)
- - moved to Rust 2021 edition  
+- change error handling, using `thiserror` (for libs) instead of `eyre` (for apps)
+- conversion interfaces (`try_from` and `from`) are now taking slices instead of owned vectors when they can
+- moved to Rust 2021 edition
 ### Fixed
+- Doc NITs and Clippy warnings and improvements
 ### Removed
 ---
 
@@ -17,7 +21,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - de-hardcoded secret key length in KEM
 ### Changed
- - refactored KEM ad DEM implementations
+- refactored KEM ad DEM implementations
 ### Fixed
 - snake_case variables
 ### Removed
