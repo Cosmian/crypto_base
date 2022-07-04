@@ -15,13 +15,15 @@ use curve25519_dalek::{
     constants,
     ristretto::{CompressedRistretto, RistrettoPoint},
     scalar::Scalar,
+    traits::Identity,
 };
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Display,
-    ops::{DerefMut, Mul},
+    iter::Sum,
+    ops::{Add, DerefMut, Mul, MulAssign, Sub},
     sync::Mutex,
 };
 
@@ -40,6 +42,24 @@ impl X25519PrivateKey {
     #[must_use]
     fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
+    }
+
+    pub fn zero() -> Self {
+        Self(Scalar::zero())
+    }
+
+    pub fn one() -> Self {
+        Self(Scalar::one())
+    }
+
+    /// Compute the multuplicative inverse of the given scalar.
+    /// If the given scalar is null, a division by zero error is returned.
+    pub fn invert(&self) -> Result<X25519PrivateKey, CryptoBaseError> {
+        if self == &Self::zero() {
+            Err(CryptoBaseError::DivisionByZero)
+        } else {
+            Ok(Self(self.0.invert()))
+        }
     }
 }
 
@@ -105,7 +125,37 @@ impl Display for X25519PrivateKey {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+impl<'a, 'b> Mul<&'b X25519PrivateKey> for &'a X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn mul(self, rhs: &'b X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 * rhs.0)
+    }
+}
+
+impl<'a> Add<&'a X25519PrivateKey> for X25519PrivateKey {
+    type Output = Self;
+
+    fn add(self, rhs: &'a X25519PrivateKey) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl Add<X25519PrivateKey> for X25519PrivateKey {
+    type Output = Self;
+
+    fn add(self, rhs: X25519PrivateKey) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl Sum for X25519PrivateKey {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(X25519PrivateKey::zero(), |e, acc| e + acc)
+    }
+}
+
+#[derive(Default, Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(try_from = "&[u8]", into = "Vec<u8>")]
 pub struct X25519PublicKey(RistrettoPoint);
 
@@ -113,6 +163,10 @@ impl X25519PublicKey {
     //compressed
     pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         Self::from(&X25519PrivateKey::new(rng))
+    }
+
+    pub fn zero() -> Self {
+        Self(RistrettoPoint::identity())
     }
 }
 
@@ -200,6 +254,42 @@ impl<'a> Mul<&'a X25519PrivateKey> for X25519PublicKey {
 
     fn mul(self, rhs: &'a X25519PrivateKey) -> Self::Output {
         Self(self.0 * rhs.0)
+    }
+}
+
+impl<'a> MulAssign<&'a X25519PrivateKey> for X25519PublicKey {
+    fn mul_assign(&mut self, rhs: &'a X25519PrivateKey) {
+        self.0 *= rhs.0;
+    }
+}
+
+impl<'a> Add<&'a X25519PublicKey> for X25519PublicKey {
+    type Output = Self;
+
+    fn add(self, rhs: &'a X25519PublicKey) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl Add for X25519PublicKey {
+    type Output = Self;
+
+    fn add(self, rhs: X25519PublicKey) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl Sum for X25519PublicKey {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(X25519PublicKey::zero(), |e, acc| acc + e)
+    }
+}
+
+impl Sub for X25519PublicKey {
+    type Output = Self;
+
+    fn sub(self, rhs: X25519PublicKey) -> Self::Output {
+        Self(self.0 - rhs.0)
     }
 }
 

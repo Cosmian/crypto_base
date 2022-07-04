@@ -60,7 +60,7 @@ impl Dem for Aes256GcmCrypto {
 #[cfg(test)]
 mod tests {
     use crate::{
-        asymmetric::{ristretto::X25519Crypto, KeyPair},
+        asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
         entropy::CsRng,
         hybrid_crypto::{Dem, Kem},
         symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, SymmetricCrypto},
@@ -72,8 +72,9 @@ mod tests {
         let m = b"my secret message";
         let additional_data = Some(b"public tag".as_slice());
         let mut rng = CsRng::new();
-        let key_pair = X25519Crypto::key_gen(&mut rng);
-        let (secret_key, _) = X25519Crypto::encaps(
+        let kem = X25519Crypto::new();
+        let key_pair = kem.key_gen(&mut rng)?;
+        let (secret_key, _) = kem.encaps(
             &mut rng,
             key_pair.public_key(),
             <Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH,

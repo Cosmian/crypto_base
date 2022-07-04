@@ -22,4 +22,6 @@ pub enum CryptoBaseError {
     HardwareCapability(String),
     #[error("Invalid size: {0}")]
     TryFromSliceError(#[from] std::array::TryFromSliceError),
+    #[error("Division by 0")]
+    DivisionByZero,
 }

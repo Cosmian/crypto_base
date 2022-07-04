@@ -1,6 +1,5 @@
 use crate::{
-    asymmetric::{ristretto::X25519Crypto, KeyPair},
-    symmetric_crypto::aes_256_gcm_pure::Aes256GcmCrypto,
+    asymmetric::ristretto::X25519Crypto, symmetric_crypto::aes_256_gcm_pure::Aes256GcmCrypto,
     CryptoBaseError, KeyTrait,
 };
 use rand_core::{CryptoRng, RngCore};
@@ -18,17 +17,18 @@ pub use kem::Kem;
 pub use scanner::BytesScanner;
 
 pub trait HybridCrypto<T: Kem, U: Dem> {
-    fn key_gen<R: RngCore + CryptoRng>(rng: &mut R) -> T::KeyPair {
-        T::key_gen(rng)
+    fn key_gen<R: RngCore + CryptoRng>(kem: &T, rng: &mut R) -> Result<T::Keys, CryptoBaseError> {
+        kem.key_gen(rng)
     }
 
     fn encrypt<R: RngCore + CryptoRng>(
+        kem: &T,
         rng: &mut R,
-        pk: &<T::KeyPair as KeyPair>::PublicKey,
+        pk: &T::PublicKey,
         additional_data: Option<&[u8]>,
         message: &[u8],
     ) -> Result<Vec<u8>, CryptoBaseError> {
-        let (secret_key, mut asymmetric_encapsulation) = T::encaps(rng, pk, U::Key::LENGTH)?;
+        let (secret_key, mut asymmetric_encapsulation) = kem.encaps(rng, pk, U::Key::LENGTH)?;
         let mut symmetric_encapsulation = U::encaps(rng, &secret_key, additional_data, message)?;
         // allocate the correct number of bytes for the ciphertext
         let mut res =
@@ -39,7 +39,8 @@ pub trait HybridCrypto<T: Kem, U: Dem> {
     }
 
     fn decrypt(
-        sk: &<T::KeyPair as KeyPair>::PrivateKey,
+        kem: &T,
+        sk: &T::PrivateKey,
         additional_data: Option<&[u8]>,
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, CryptoBaseError> {
@@ -50,7 +51,7 @@ pub trait HybridCrypto<T: Kem, U: Dem> {
                 T::ENCAPSULATION_SIZE
             )));
         }
-        let secret_key = T::decaps(sk, &ciphertext[..T::ENCAPSULATION_SIZE], U::Key::LENGTH)?;
+        let secret_key = kem.decaps(sk, &ciphertext[..T::ENCAPSULATION_SIZE], U::Key::LENGTH)?;
         U::decaps(
             &secret_key,
             additional_data,
