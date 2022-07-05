@@ -26,7 +26,7 @@ impl Dem for Aes256GcmCrypto {
         let mut c = Self::encrypt(&key, message, &nonce, additional_data)
             .map_err(|err| CryptoBaseError::EncryptionError(err.to_string()))?;
         // allocate correct byte number
-        let mut res: Vec<u8> = Vec::with_capacity(message.len() + Self::ENCRYPTION_OVERHEAD);
+        let mut res: Vec<u8> = Vec::with_capacity(message.len() + Self::ENCAPSULATION_OVERHEAD);
         res.append(&mut nonce.into());
         res.append(&mut c);
         Ok(res)
@@ -43,6 +43,14 @@ impl Dem for Aes256GcmCrypto {
                 expected: Self::Key::LENGTH,
             });
         }
+
+        if encapsulation.len() < Self::Nonce::LENGTH {
+            return Err(CryptoBaseError::SizeError {
+                given: encapsulation.len(),
+                expected: Self::Nonce::LENGTH,
+            });
+        }
+
         // AES GCM includes an authentication method
         // there is no need for parsing a MAC key
         let key = Self::Key::try_from(&secret_key[..Self::Key::LENGTH])?;
@@ -60,7 +68,7 @@ impl Dem for Aes256GcmCrypto {
 #[cfg(test)]
 mod tests {
     use crate::{
-        asymmetric::{ristretto::X25519Crypto, KeyPair},
+        asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
         entropy::CsRng,
         hybrid_crypto::{Dem, Kem},
         symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, SymmetricCrypto},
@@ -68,12 +76,27 @@ mod tests {
     };
 
     #[test]
+    fn test_encapsulation_overhead() -> Result<(), CryptoBaseError> {
+        const SYM_KEY_LENGTH: usize = 32;
+        let m = b"my secret message";
+        let l = b"public tag";
+        let mut rng = CsRng::new();
+        let kem = X25519Crypto::new();
+        let key_pair = kem.key_gen(&mut rng)?;
+        let (k, _) = kem.encaps(&mut rng, key_pair.public_key(), SYM_KEY_LENGTH)?;
+        let c = Aes256GcmCrypto::encaps(&mut rng, &k, Some(l), m)?;
+        assert_eq!(c.len(), m.len() + Aes256GcmCrypto::ENCAPSULATION_OVERHEAD);
+        Ok(())
+    }
+
+    #[test]
     fn test_dem() -> Result<(), CryptoBaseError> {
         let m = b"my secret message";
         let additional_data = Some(b"public tag".as_slice());
         let mut rng = CsRng::new();
-        let key_pair = X25519Crypto::key_gen(&mut rng);
-        let (secret_key, _) = X25519Crypto::encaps(
+        let kem = X25519Crypto::new();
+        let key_pair = kem.key_gen(&mut rng)?;
+        let (secret_key, _) = kem.encaps(
             &mut rng,
             key_pair.public_key(),
             <Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH,

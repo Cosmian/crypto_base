@@ -20,7 +20,10 @@ pub mod sodium_bindings;
 pub use crate::error::CryptoBaseError;
 
 pub trait KeyTrait: Sized + Clone {
+    /// Number of bytes in the key serialization
     const LENGTH: usize;
+    /// Serialize the key
     fn to_bytes(&self) -> Vec<u8>;
+    /// Try deserializing the key
     fn try_from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError>;
 }

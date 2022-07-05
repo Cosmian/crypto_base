@@ -1,6 +1,7 @@
 use crate::{symmetric_crypto::SymmetricCrypto, CryptoBaseError, KeyTrait};
 use std::vec::Vec;
 
+pub mod bonneh_franklin;
 pub mod ristretto;
 
 pub trait KeyPair {
