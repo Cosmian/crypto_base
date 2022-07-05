@@ -1,9 +1,12 @@
-use crate::{symmetric_crypto::SymmetricCrypto, CryptoBaseError, KeyTrait};
+use crate::{
+    symmetric_crypto::{nonce::NonceTrait, SymmetricCrypto},
+    CryptoBaseError,
+};
 use rand_core::{CryptoRng, RngCore};
 
 pub trait Dem: SymmetricCrypto {
     /// Number of bytes added to the message length in the ciphertext
-    const ENCRYPTION_OVERHEAD: usize = Self::Key::LENGTH + Self::MAC_LENGTH;
+    const ENCAPSULATION_OVERHEAD: usize = Self::Nonce::LENGTH + Self::MAC_LENGTH;
 
     /// Encapsulate data using a KEM-generated secret key `K`.
     ///
