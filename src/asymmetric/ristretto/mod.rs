@@ -41,6 +41,10 @@ impl X25519PrivateKey {
     fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
     }
+
+    pub fn invert(&self) -> Self {
+        Self(self.0.invert())
+    }
 }
 
 impl KeyTrait for X25519PrivateKey {
