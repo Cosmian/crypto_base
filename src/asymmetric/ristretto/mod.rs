@@ -105,6 +105,22 @@ impl Display for X25519PrivateKey {
     }
 }
 
+impl<'a> Mul<&'a X25519PrivateKey> for X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn mul(self, rhs: &'a X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 * rhs.0)
+    }
+}
+
+impl<'a, 'b> Mul<&'b X25519PrivateKey> for &'a X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn mul(self, rhs: &'b X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 * rhs.0)
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(try_from = "&[u8]", into = "Vec<u8>")]
 pub struct X25519PublicKey(RistrettoPoint);
