@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Display,
-    ops::{DerefMut, Mul},
+    ops::{DerefMut, Mul, Sub},
     sync::Mutex,
 };
 
@@ -118,6 +118,30 @@ impl<'a, 'b> Mul<&'b X25519PrivateKey> for &'a X25519PrivateKey {
 
     fn mul(self, rhs: &'b X25519PrivateKey) -> Self::Output {
         X25519PrivateKey(self.0 * rhs.0)
+    }
+}
+
+impl<'a> Sub<&'a X25519PrivateKey> for X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn sub(self, rhs: &'a X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 - rhs.0)
+    }
+}
+
+impl<'a> Sub<X25519PrivateKey> for &'a X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn sub(self, rhs: X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 - rhs.0)
+    }
+}
+
+impl<'a, 'b> Sub<&'b X25519PrivateKey> for &'a X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn sub(self, rhs: &'b X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 - rhs.0)
     }
 }
 
