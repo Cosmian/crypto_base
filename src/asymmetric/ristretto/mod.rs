@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Display,
-    ops::{DerefMut, Mul, Sub},
+    ops::{Add, DerefMut, Mul, Sub},
     sync::Mutex,
 };
 
@@ -228,6 +228,30 @@ impl TryFrom<&str> for X25519PublicKey {
 impl Display for X25519PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", hex::encode(self.0.compress().to_bytes()))
+    }
+}
+
+impl Add for X25519PublicKey {
+    type Output = Self;
+
+    fn add(self, rhs: X25519PublicKey) -> Self::Output {
+        X25519PublicKey(self.0 + rhs.0)
+    }
+}
+
+impl<'a> Add<&'a X25519PublicKey> for X25519PublicKey {
+    type Output = X25519PublicKey;
+
+    fn add(self, rhs: &'a X25519PublicKey) -> Self::Output {
+        X25519PublicKey(self.0 + rhs.0)
+    }
+}
+
+impl<'a, 'b> Add<&'a X25519PublicKey> for &'b X25519PublicKey {
+    type Output = X25519PublicKey;
+
+    fn add(self, rhs: &'a X25519PublicKey) -> Self::Output {
+        X25519PublicKey(self.0 + rhs.0)
     }
 }
 
