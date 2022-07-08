@@ -125,6 +125,46 @@ impl<'a, 'b> Mul<&'b X25519PrivateKey> for &'a X25519PrivateKey {
     }
 }
 
+impl Add for X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn add(self, rhs: X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 + rhs.0)
+    }
+}
+
+impl<'a> Add<&'a X25519PrivateKey> for X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn add(self, rhs: &'a X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 + rhs.0)
+    }
+}
+
+impl<'a> Add<X25519PrivateKey> for &'a X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn add(self, rhs: X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 + rhs.0)
+    }
+}
+
+impl<'a, 'b> Add<&'b X25519PrivateKey> for &'a X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn add(self, rhs: &'b X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 + rhs.0)
+    }
+}
+
+impl Sub for X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn sub(self, rhs: X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 - rhs.0)
+    }
+}
+
 impl<'a> Sub<&'a X25519PrivateKey> for X25519PrivateKey {
     type Output = X25519PrivateKey;
 
