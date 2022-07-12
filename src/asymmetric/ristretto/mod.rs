@@ -24,6 +24,7 @@ use std::{
     ops::{Add, DerefMut, Mul, Sub},
     sync::Mutex,
 };
+use zeroize::Zeroize;
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
@@ -186,6 +187,18 @@ impl<'a, 'b> Sub<&'b X25519PrivateKey> for &'a X25519PrivateKey {
 
     fn sub(self, rhs: &'b X25519PrivateKey) -> Self::Output {
         X25519PrivateKey(self.0 - rhs.0)
+    }
+}
+
+impl Zeroize for X25519PrivateKey {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+impl Drop for X25519PrivateKey {
+    fn drop(&mut self) {
+        self.zeroize();
     }
 }
 

@@ -32,6 +32,7 @@ serde = { version = "1.0", features = ["derive"] }
 sha2 = "0.10"
 thiserror = "1.0"
 tracing = "0.1"
+zeroize = "1.5.6"
 
 [dev-dependencies]
 retry_panic = { git = "https://github.com/Cosmian/retry_panic" }
