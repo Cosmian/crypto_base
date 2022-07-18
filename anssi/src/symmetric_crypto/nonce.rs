@@ -9,13 +9,25 @@ use std::{
 };
 
 pub trait NonceTrait: Sized + Clone {
+    /// Size of the nonce, in bytes.
     const LENGTH: usize;
+
+    /// Generate a new nonce object
     fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self;
+
+    /// Try to deserialize the given bytes into a nonce object. The number of
+    /// bytes must be equal to `LENGTH`.
     fn try_from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError>;
+
+    /// Increment the nonce by the given value.
     #[must_use]
     fn increment(&self, increment: usize) -> Self;
+
+    /// xor the nonce with the given value.
     #[must_use]
     fn xor(&self, b2: &[u8]) -> Self;
+
+    /// Serialize the nonce.
     fn to_bytes(&self) -> &[u8];
 }
 

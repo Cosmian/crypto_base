@@ -26,11 +26,14 @@ impl<S, const MAX_CLEAR_TEXT_LENGTH: usize> Block<S, MAX_CLEAR_TEXT_LENGTH>
 where
     S: SymmetricCrypto,
 {
+    /// Number of bytes added to the size of the input data in the output ciphertext.
     pub const ENCRYPTION_OVERHEAD: usize =
         BlockHeader::<S>::LENGTH + <S as SymmetricCrypto>::MAC_LENGTH;
+
+    /// Maximum number of bytes for an output ciphertext.
     pub const MAX_ENCRYPTED_LENGTH: usize = MAX_CLEAR_TEXT_LENGTH + Self::ENCRYPTION_OVERHEAD;
 
-    // Create a new, empty block
+    /// Create a new, empty block
     #[must_use]
     pub fn new() -> Self {
         Self {

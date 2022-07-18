@@ -13,8 +13,8 @@ pub const KEY_LENGTH: usize = 32;
 pub const NONCE_LENGTH: usize = 0;
 pub const MAC_LENGTH: usize = 0;
 
-pub type Key = crate::symmetric_crypto::key::Key<KEY_LENGTH>;
-pub type Nonce = crate::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
+pub type Key = cosmian_crypto_base_anssi::symmetric_crypto::key::Key<KEY_LENGTH>;
+pub type Nonce = cosmian_crypto_base_anssi::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Default)]

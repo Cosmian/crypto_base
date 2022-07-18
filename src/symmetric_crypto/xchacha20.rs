@@ -16,8 +16,8 @@ pub const KEY_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_KEYBYTES as usi
 pub const NONCE_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_NPUBBYTES as usize;
 pub const MAC_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_ABYTES as usize;
 
-pub type Key = crate::symmetric_crypto::key::Key<KEY_LENGTH>;
-pub type Nonce = crate::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
+pub type Key = cosmian_crypto_base_anssi::symmetric_crypto::key::Key<KEY_LENGTH>;
+pub type Nonce = cosmian_crypto_base_anssi::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct XChacha20Crypto;

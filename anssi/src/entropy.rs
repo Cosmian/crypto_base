@@ -1,5 +1,3 @@
-pub mod distributions;
-
 use rand::{RngCore as _, SeedableRng};
 use rand_core::{CryptoRng, RngCore};
 use rand_hc::Hc128Rng;
@@ -12,6 +10,7 @@ pub struct CsRng {
 }
 
 impl CsRng {
+    /// Generate a new random number generator.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -19,7 +18,9 @@ impl CsRng {
         }
     }
 
-    /// Generate a vector of random bytes
+    /// Generate a vector of random bytes with the given length.
+    ///
+    /// - `len` : number of random bytes to generate
     pub fn generate_random_bytes(&mut self, len: usize) -> Vec<u8> {
         let mut bytes = vec![0_u8; len];
         self.rng.fill_bytes(&mut bytes);
@@ -50,4 +51,5 @@ impl RngCore for CsRng {
         self.rng.try_fill_bytes(dest).map_err(rand_core::Error::new)
     }
 }
+
 impl CryptoRng for CsRng {}
