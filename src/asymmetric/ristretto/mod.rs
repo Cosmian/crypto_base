@@ -300,7 +300,7 @@ impl<'a> Add<&'a X25519PublicKey> for X25519PublicKey {
     }
 }
 
-impl<'a, 'b> Add<&'a X25519PublicKey> for &'b X25519PublicKey {
+impl<'a> Add<&'a X25519PublicKey> for &X25519PublicKey {
     type Output = X25519PublicKey;
 
     fn add(self, rhs: &'a X25519PublicKey) -> Self::Output {
