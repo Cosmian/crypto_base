@@ -1,11 +1,8 @@
-mod error;
-
 pub mod aes_hash_mmo;
 pub mod asymmetric;
 pub mod brc_c_prf_hi;
-pub mod entropy;
+pub mod distributions;
 pub mod hybrid_crypto;
-pub mod kdf;
 pub mod key_wrapping;
 pub mod symmetric_crypto;
 
@@ -17,10 +14,7 @@ pub mod primes;
 #[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
 pub mod sodium_bindings;
 
-pub use crate::error::CryptoBaseError;
-
-pub trait KeyTrait: Sized + Clone {
-    const LENGTH: usize;
-    fn to_bytes(&self) -> Vec<u8>;
-    fn try_from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError>;
-}
+pub use cosmian_crypto_base_anssi::entropy;
+pub use cosmian_crypto_base_anssi::kdf;
+pub use cosmian_crypto_base_anssi::CryptoBaseError;
+pub use cosmian_crypto_base_anssi::KeyTrait;
