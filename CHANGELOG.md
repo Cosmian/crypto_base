@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [2.1.0] - 2022-07-19
+### Added
+- Add operations for `X25519PrivateKey` and `X25519PublicKey`
+- Zeroize `X25519PrivateKey` on `Drop`
+### Changed
+### Fixed
+### Removed
+---
+
+---
 ## [2.0.0] - 2022-07-01
 ### Added
 - key wrapping ([rfc5649](https://www.rfc-editor.org/rfc/rfc5649) and [rfc3394](https://datatracker.ietf.org/doc/html/rfc3394))
