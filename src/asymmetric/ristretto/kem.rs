@@ -1,8 +1,8 @@
 use crate::{
     asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
     hybrid_crypto::Kem,
-    kdf, CryptoBaseError, KeyTrait,
 };
+use cosmian_crypto_base_anssi::{kdf, CryptoBaseError, KeyTrait};
 use rand_core::{CryptoRng, RngCore};
 use std::convert::TryFrom;
 
@@ -70,9 +70,9 @@ impl Kem for X25519Crypto {
 mod tests {
     use crate::{
         asymmetric::{ristretto::X25519Crypto, KeyPair},
-        entropy::CsRng,
         hybrid_crypto::Kem,
     };
+    use cosmian_crypto_base_anssi::entropy::CsRng;
 
     #[test]
     fn test_kem() {

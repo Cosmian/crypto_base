@@ -1,7 +1,7 @@
 pub mod kem;
 
 use super::{AsymmetricCrypto, KeyPair};
-use crate::{
+use cosmian_crypto_base_anssi::{
     entropy::CsRng,
     kdf::hkdf_256,
     symmetric_crypto::{
@@ -11,319 +11,19 @@ use crate::{
     },
     CryptoBaseError, KeyTrait,
 };
-use curve25519_dalek::{
-    constants,
-    ristretto::{CompressedRistretto, RistrettoPoint},
-    scalar::Scalar,
-};
 use rand_core::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Display,
-    ops::{Add, DerefMut, Mul, Sub},
+    ops::DerefMut,
     sync::Mutex,
 };
-use zeroize::Zeroize;
+
+pub use cosmian_crypto_base_anssi::asymmetric::{X25519PrivateKey, X25519PublicKey};
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
-#[serde(try_from = "&[u8]", into = "Vec<u8>")]
-pub struct X25519PrivateKey(Scalar);
-
-impl X25519PrivateKey {
-    #[must_use]
-    pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        Self(Scalar::random(rng))
-    }
-
-    #[must_use]
-    fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
-    }
-
-    pub fn invert(&self) -> Self {
-        Self(self.0.invert())
-    }
-}
-
-impl KeyTrait for X25519PrivateKey {
-    const LENGTH: usize = 32;
-
-    #[must_use]
-    fn to_bytes(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
-    }
-
-    fn try_from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
-        Self::try_from(bytes)
-    }
-}
-
-impl TryFrom<Vec<u8>> for X25519PrivateKey {
-    type Error = CryptoBaseError;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from(bytes.as_slice())
-    }
-}
-
-impl TryFrom<&[u8]> for X25519PrivateKey {
-    type Error = CryptoBaseError;
-
-    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        let len = bytes.len();
-        let bytes: [u8; <Self>::LENGTH] = bytes.try_into().map_err(|_| Self::Error::SizeError {
-            given: len,
-            expected: <Self>::LENGTH,
-        })?;
-        let scalar = Scalar::from_canonical_bytes(bytes).ok_or_else(|| {
-            Self::Error::ConversionError(
-                "Given bytes do not represent a cannonical Scalar!".to_string(),
-            )
-        })?;
-        Ok(Self(scalar))
-    }
-}
-
-impl From<X25519PrivateKey> for Vec<u8> {
-    fn from(key: X25519PrivateKey) -> Self {
-        key.to_bytes()
-    }
-}
-
-/// Parse from an hex encoded String
-impl TryFrom<&str> for X25519PrivateKey {
-    type Error = CryptoBaseError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let bytes = hex::decode(value)?;
-        Self::try_from(bytes)
-    }
-}
-
-/// Display the hex encoded value of the key
-impl Display for X25519PrivateKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0.as_bytes()))
-    }
-}
-
-impl<'a> Mul<&'a X25519PrivateKey> for X25519PrivateKey {
-    type Output = X25519PrivateKey;
-
-    fn mul(self, rhs: &'a X25519PrivateKey) -> Self::Output {
-        X25519PrivateKey(self.0 * rhs.0)
-    }
-}
-
-impl<'a, 'b> Mul<&'b X25519PrivateKey> for &'a X25519PrivateKey {
-    type Output = X25519PrivateKey;
-
-    fn mul(self, rhs: &'b X25519PrivateKey) -> Self::Output {
-        X25519PrivateKey(self.0 * rhs.0)
-    }
-}
-
-impl Add for X25519PrivateKey {
-    type Output = X25519PrivateKey;
-
-    fn add(self, rhs: X25519PrivateKey) -> Self::Output {
-        X25519PrivateKey(self.0 + rhs.0)
-    }
-}
-
-impl<'a> Add<&'a X25519PrivateKey> for X25519PrivateKey {
-    type Output = X25519PrivateKey;
-
-    fn add(self, rhs: &'a X25519PrivateKey) -> Self::Output {
-        X25519PrivateKey(self.0 + rhs.0)
-    }
-}
-
-impl<'a> Add<X25519PrivateKey> for &'a X25519PrivateKey {
-    type Output = X25519PrivateKey;
-
-    fn add(self, rhs: X25519PrivateKey) -> Self::Output {
-        X25519PrivateKey(self.0 + rhs.0)
-    }
-}
-
-impl<'a, 'b> Add<&'b X25519PrivateKey> for &'a X25519PrivateKey {
-    type Output = X25519PrivateKey;
-
-    fn add(self, rhs: &'b X25519PrivateKey) -> Self::Output {
-        X25519PrivateKey(self.0 + rhs.0)
-    }
-}
-
-impl Sub for X25519PrivateKey {
-    type Output = X25519PrivateKey;
-
-    fn sub(self, rhs: X25519PrivateKey) -> Self::Output {
-        X25519PrivateKey(self.0 - rhs.0)
-    }
-}
-
-impl<'a> Sub<&'a X25519PrivateKey> for X25519PrivateKey {
-    type Output = X25519PrivateKey;
-
-    fn sub(self, rhs: &'a X25519PrivateKey) -> Self::Output {
-        X25519PrivateKey(self.0 - rhs.0)
-    }
-}
-
-impl<'a> Sub<X25519PrivateKey> for &'a X25519PrivateKey {
-    type Output = X25519PrivateKey;
-
-    fn sub(self, rhs: X25519PrivateKey) -> Self::Output {
-        X25519PrivateKey(self.0 - rhs.0)
-    }
-}
-
-impl<'a, 'b> Sub<&'b X25519PrivateKey> for &'a X25519PrivateKey {
-    type Output = X25519PrivateKey;
-
-    fn sub(self, rhs: &'b X25519PrivateKey) -> Self::Output {
-        X25519PrivateKey(self.0 - rhs.0)
-    }
-}
-
-impl Zeroize for X25519PrivateKey {
-    fn zeroize(&mut self) {
-        self.0.zeroize();
-    }
-}
-
-impl Drop for X25519PrivateKey {
-    fn drop(&mut self) {
-        self.zeroize();
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
-#[serde(try_from = "&[u8]", into = "Vec<u8>")]
-pub struct X25519PublicKey(RistrettoPoint);
-
-impl X25519PublicKey {
-    //compressed
-    pub fn new<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        Self::from(&X25519PrivateKey::new(rng))
-    }
-}
-
-impl KeyTrait for X25519PublicKey {
-    const LENGTH: usize = 32;
-
-    #[must_use]
-    fn to_bytes(&self) -> Vec<u8> {
-        self.0.compress().as_bytes().to_vec()
-    }
-
-    fn try_from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
-        Self::try_from(bytes)
-    }
-}
-
-impl From<&X25519PrivateKey> for X25519PublicKey {
-    fn from(private_key: &X25519PrivateKey) -> Self {
-        Self(&private_key.0 * &constants::RISTRETTO_BASEPOINT_TABLE)
-    }
-}
-
-impl TryFrom<Vec<u8>> for X25519PublicKey {
-    type Error = CryptoBaseError;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from(bytes.as_slice())
-    }
-}
-
-impl TryFrom<&[u8]> for X25519PublicKey {
-    type Error = CryptoBaseError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let len = value.len();
-        if len != <Self>::LENGTH {
-            return Err(Self::Error::SizeError {
-                given: len,
-                expected: <Self>::LENGTH,
-            });
-        };
-        let compressed = CompressedRistretto::from_slice(value);
-        let point = compressed.decompress().ok_or_else(|| {
-            Self::Error::ConversionError(
-                "Cannot decompress given bytes into a valid curve point!".to_string(),
-            )
-        })?;
-        Ok(Self(point))
-    }
-}
-
-impl From<X25519PublicKey> for Vec<u8> {
-    fn from(key: X25519PublicKey) -> Self {
-        key.to_bytes()
-    }
-}
-
-/// Parse from an hex encoded String
-impl TryFrom<&str> for X25519PublicKey {
-    type Error = CryptoBaseError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let bytes = hex::decode(value)?;
-        Self::try_from(bytes.as_slice())
-    }
-}
-
-/// Display the hex encoded value of the key
-impl Display for X25519PublicKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0.compress().to_bytes()))
-    }
-}
-
-impl Add for X25519PublicKey {
-    type Output = Self;
-
-    fn add(self, rhs: X25519PublicKey) -> Self::Output {
-        X25519PublicKey(self.0 + rhs.0)
-    }
-}
-
-impl<'a> Add<&'a X25519PublicKey> for X25519PublicKey {
-    type Output = X25519PublicKey;
-
-    fn add(self, rhs: &'a X25519PublicKey) -> Self::Output {
-        X25519PublicKey(self.0 + rhs.0)
-    }
-}
-
-impl<'a> Add<&'a X25519PublicKey> for &X25519PublicKey {
-    type Output = X25519PublicKey;
-
-    fn add(self, rhs: &'a X25519PublicKey) -> Self::Output {
-        X25519PublicKey(self.0 + rhs.0)
-    }
-}
-
-impl<'a, 'b> Mul<&'a X25519PrivateKey> for &'b X25519PublicKey {
-    type Output = X25519PublicKey;
-
-    fn mul(self, rhs: &'a X25519PrivateKey) -> Self::Output {
-        X25519PublicKey(self.0 * rhs.0)
-    }
-}
-
-impl<'a> Mul<&'a X25519PrivateKey> for X25519PublicKey {
-    type Output = Self;
-
-    fn mul(self, rhs: &'a X25519PrivateKey) -> Self::Output {
-        Self(self.0 * rhs.0)
-    }
-}
-
+/// Asymmetric pricate and public key pair based on the X25519 curve.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct X25519KeyPair {
     private_key: X25519PrivateKey,
@@ -438,12 +138,12 @@ impl X25519Crypto {
         public_key: &X25519PublicKey,      // gˣ
     ) -> Result<[u8; 32], CryptoBaseError> {
         //calculate the shared point: (gˣ)ʸ
-        let point = public_key.0 * ephemeral_keypair.private_key.0;
+        let point = public_key * &ephemeral_keypair.private_key;
         // create a 64 bytes master key using gʸ and the shared point
         let mut master = [0_u8; 2 * <X25519PublicKey>::LENGTH];
         master[..<X25519PublicKey>::LENGTH]
             .clone_from_slice(&ephemeral_keypair.public_key.to_bytes());
-        master[<X25519PublicKey>::LENGTH..].clone_from_slice(&point.compress().to_bytes());
+        master[<X25519PublicKey>::LENGTH..].clone_from_slice(&point.to_bytes());
         //Derive a 256 bit key using HKDF
         Ok(hkdf_256(&master, 32, HKDF_INFO)?
             .try_into()
@@ -456,11 +156,11 @@ impl X25519Crypto {
         private_key: &X25519PrivateKey,         // x
     ) -> Result<[u8; 32], CryptoBaseError> {
         //calculate the shared point: (gʸ)ˣ
-        let point = private_key.0 * ephemeral_public_key.0;
+        let point = ephemeral_public_key * private_key;
         // create a 64 bytes master key using gʸ and the shared point
         let mut master = [0_u8; 2 * <X25519PublicKey>::LENGTH];
         master[..<X25519PublicKey>::LENGTH].clone_from_slice(&ephemeral_public_key.to_bytes());
-        master[<X25519PublicKey>::LENGTH..].clone_from_slice(point.compress().as_bytes());
+        master[<X25519PublicKey>::LENGTH..].clone_from_slice(&point.to_bytes());
         //Derive a 256 bit key using HKDF
         Ok(hkdf_256(&master, 32, HKDF_INFO)?
             .try_into()
@@ -616,15 +316,15 @@ mod test {
     use std::convert::TryFrom;
 
     use super::{AsymmetricCrypto, KeyPair, X25519Crypto, X25519PrivateKey, X25519PublicKey};
-    use crate::{symmetric_crypto::aes_256_gcm_pure, KeyTrait};
+    use cosmian_crypto_base_anssi::{symmetric_crypto::aes_256_gcm_pure, KeyTrait};
 
     #[test]
     fn test_generate_key_pair() {
         let crypto = super::X25519Crypto::new();
         let key_pair_1 = crypto.generate_key_pair(None).unwrap();
         assert_ne!(
-            &[0_u8; X25519PrivateKey::LENGTH],
-            key_pair_1.private_key.0.as_bytes()
+            &vec![0_u8; X25519PrivateKey::LENGTH],
+            &key_pair_1.private_key.to_bytes(),
         );
         assert_ne!(
             vec![0_u8; X25519PublicKey::LENGTH],
@@ -632,7 +332,7 @@ mod test {
         );
         assert_eq!(
             X25519PrivateKey::LENGTH,
-            key_pair_1.private_key.0.as_bytes().len()
+            key_pair_1.private_key.to_bytes().len()
         );
         assert_eq!(
             X25519PublicKey::LENGTH,

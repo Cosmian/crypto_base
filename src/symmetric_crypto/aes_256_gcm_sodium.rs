@@ -17,8 +17,8 @@ pub const KEY_LENGTH: usize = crypto_aead_aes256gcm_KEYBYTES as usize;
 pub const NONCE_LENGTH: usize = crypto_aead_aes256gcm_NPUBBYTES as usize;
 pub const MAC_LENGTH: usize = crypto_aead_aes256gcm_ABYTES as usize;
 
-pub type Key = crate::symmetric_crypto::key::Key<KEY_LENGTH>;
-pub type Nonce = crate::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
+pub type Key = cosmian_crypto_base_anssi::symmetric_crypto::key::Key<KEY_LENGTH>;
+pub type Nonce = cosmian_crypto_base_anssi::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
 
 pub fn init() -> Result<(), CryptoBaseError> {
     unsafe {

@@ -1,21 +1,13 @@
-use crate::{
-    asymmetric::{ristretto::X25519Crypto, KeyPair},
-    symmetric_crypto::aes_256_gcm_pure::Aes256GcmCrypto,
+use crate::asymmetric::{ristretto::X25519Crypto, KeyPair};
+use cosmian_crypto_base_anssi::{
+    symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, Dem},
     CryptoBaseError, KeyTrait,
 };
 use rand_core::{CryptoRng, RngCore};
 
-mod block;
-mod dem;
-mod header;
 mod kem;
-mod scanner;
 
-pub use block::Block;
-pub use dem::Dem;
-pub use header::Metadata;
 pub use kem::Kem;
-pub use scanner::BytesScanner;
 
 pub trait HybridCrypto<T: Kem, U: Dem> {
     fn key_gen<R: RngCore + CryptoRng>(rng: &mut R) -> T::KeyPair {

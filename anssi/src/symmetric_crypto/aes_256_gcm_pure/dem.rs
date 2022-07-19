@@ -1,6 +1,7 @@
 use crate::{
-    hybrid_crypto::Dem,
-    symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, nonce::NonceTrait, SymmetricCrypto},
+    symmetric_crypto::{
+        aes_256_gcm_pure::Aes256GcmCrypto, nonce::NonceTrait, Dem, SymmetricCrypto,
+    },
     CryptoBaseError, KeyTrait,
 };
 use rand_core::{CryptoRng, RngCore};
@@ -60,11 +61,9 @@ impl Dem for Aes256GcmCrypto {
 #[cfg(test)]
 mod tests {
     use crate::{
-        asymmetric::{ristretto::X25519Crypto, KeyPair},
         entropy::CsRng,
-        hybrid_crypto::{Dem, Kem},
-        symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, SymmetricCrypto},
-        CryptoBaseError, KeyTrait,
+        symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, Dem},
+        CryptoBaseError,
     };
 
     #[test]
@@ -72,12 +71,7 @@ mod tests {
         let m = b"my secret message";
         let additional_data = Some(b"public tag".as_slice());
         let mut rng = CsRng::new();
-        let key_pair = X25519Crypto::key_gen(&mut rng);
-        let (secret_key, _) = X25519Crypto::encaps(
-            &mut rng,
-            key_pair.public_key(),
-            <Aes256GcmCrypto as SymmetricCrypto>::Key::LENGTH,
-        )?;
+        let secret_key = rng.generate_random_bytes(256);
         let c = Aes256GcmCrypto::encaps(&mut rng, &secret_key, additional_data, m)?;
         let res = Aes256GcmCrypto::decaps(&secret_key, additional_data, &c)?;
         if res != m {
