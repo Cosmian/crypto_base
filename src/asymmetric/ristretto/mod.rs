@@ -19,7 +19,7 @@ use std::{
     sync::Mutex,
 };
 
-pub use cosmian_crypto_base_anssi::asymmetric::{X25519PrivateKey, X25519PublicKey};
+use cosmian_crypto_base_anssi::asymmetric::{X25519PrivateKey, X25519PublicKey};
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 

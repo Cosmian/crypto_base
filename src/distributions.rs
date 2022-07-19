@@ -109,8 +109,6 @@ mod tests {
 
     use num_bigint::{BigInt, BigUint};
     use num_traits::Pow;
-    use retry_panic::retry_panic;
-
     use super::{Normal, Uniform};
 
     #[test]
@@ -196,7 +194,6 @@ mod tests {
         assert!(counter_3 > 99530 * FACTOR && counter_3 < 99930 * FACTOR);
     }
 
-    #[retry_panic]
     #[test]
     fn test_normal_big_uint_mod_q() {
         let mean = BigInt::from(0_u32);
@@ -223,13 +220,6 @@ mod tests {
                 counter_3 += 1;
             }
         }
-        // println!("σ: [{} bits] {}", std_dev.bits(), &std_dev);
-        // println!(
-        //     "<σ: {} <2σ: {} <3σ: {}",
-        //     counter_1 / FACTOR,
-        //     counter_2 / FACTOR,
-        //     counter_3 / FACTOR
-        // );
 
         // three sigma rule
         assert!(counter_1 > 68070 * FACTOR && counter_1 < 68470 * FACTOR);

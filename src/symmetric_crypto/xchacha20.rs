@@ -4,9 +4,10 @@ use crate::{
         crypto_aead_xchacha20poly1305_ietf_NPUBBYTES, crypto_aead_xchacha20poly1305_ietf_decrypt,
         crypto_aead_xchacha20poly1305_ietf_encrypt, sodium_init,
     },
-    symmetric_crypto::{SymmetricCrypto, MIN_DATA_LENGTH},
+    symmetric_crypto::MIN_DATA_LENGTH,
     CryptoBaseError,
 };
+use cosmian_crypto_base_anssi::symmetric_crypto::SymmetricCrypto;
 use std::sync::Once;
 use std::vec::Vec;
 
@@ -122,11 +123,10 @@ impl SymmetricCrypto for XChacha20Crypto {
 
 #[cfg(test)]
 mod tests {
-    use crate::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait};
-
     use super::{
         Key, Nonce, SymmetricCrypto, XChacha20Crypto, KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH,
     };
+    use cosmian_crypto_base_anssi::{entropy::CsRng, symmetric_crypto::nonce::NonceTrait};
 
     #[test]
     fn test_key() {

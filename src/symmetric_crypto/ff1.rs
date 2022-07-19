@@ -6,7 +6,7 @@ use itertools::Itertools;
 use num_traits::Bounded;
 use tracing::trace;
 
-use crate::{symmetric_crypto::SymmetricCrypto, CryptoBaseError};
+use cosmian_crypto_base_anssi::{symmetric_crypto::SymmetricCrypto, CryptoBaseError};
 
 pub const RECOMMENDED_THRESHOLD: usize = 1_000_000;
 pub const KEY_LENGTH: usize = 32;

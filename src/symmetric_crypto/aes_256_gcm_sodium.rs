@@ -9,9 +9,10 @@ use crate::{
         crypto_aead_aes256gcm_encrypt_detached, crypto_aead_aes256gcm_is_available,
         randombytes_buf, sodium_increment, sodium_init,
     },
-    symmetric_crypto::{SymmetricCrypto, MIN_DATA_LENGTH},
+    symmetric_crypto::MIN_DATA_LENGTH,
     CryptoBaseError,
 };
+use cosmian_crypto_base_anssi::symmetric_crypto::SymmetricCrypto;
 
 pub const KEY_LENGTH: usize = crypto_aead_aes256gcm_KEYBYTES as usize;
 pub const NONCE_LENGTH: usize = crypto_aead_aes256gcm_NPUBBYTES as usize;
@@ -376,17 +377,16 @@ impl SymmetricCrypto for Aes256GcmCrypto {
 mod tests {
 
     use crate::{
-        entropy::CsRng,
-        symmetric_crypto::{
-            aes_256_gcm_sodium::{
-                decrypt_combined, decrypt_detached, encrypt_combined, encrypt_detached,
-                generate_key, generate_nonce, generate_random_bytes, increment_nonce,
-                Aes256GcmCrypto, Key, Nonce, KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH,
-            },
-            nonce::NonceTrait,
-            SymmetricCrypto,
+        symmetric_crypto::aes_256_gcm_sodium::{
+            decrypt_combined, decrypt_detached, encrypt_combined, encrypt_detached, generate_key,
+            generate_nonce, generate_random_bytes, increment_nonce, Aes256GcmCrypto, Key, Nonce,
+            KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH,
         },
         CryptoBaseError,
+    };
+    use cosmian_crypto_base_anssi::{
+        entropy::CsRng,
+        symmetric_crypto::{nonce::NonceTrait, SymmetricCrypto},
     };
 
     #[test]

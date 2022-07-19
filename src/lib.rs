@@ -14,7 +14,4 @@ pub mod primes;
 #[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
 pub mod sodium_bindings;
 
-pub use cosmian_crypto_base_anssi::entropy;
-pub use cosmian_crypto_base_anssi::kdf;
 pub use cosmian_crypto_base_anssi::CryptoBaseError;
-pub use cosmian_crypto_base_anssi::KeyTrait;
