@@ -21,9 +21,10 @@ use serde::{Deserialize, Serialize};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Display,
-    ops::{DerefMut, Mul},
+    ops::{Add, DerefMut, Mul, Sub},
     sync::Mutex,
 };
+use zeroize::Zeroize;
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
@@ -40,6 +41,10 @@ impl X25519PrivateKey {
     #[must_use]
     fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
+    }
+
+    pub fn invert(&self) -> Self {
+        Self(self.0.invert())
     }
 }
 
@@ -102,6 +107,98 @@ impl TryFrom<&str> for X25519PrivateKey {
 impl Display for X25519PrivateKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", hex::encode(self.0.as_bytes()))
+    }
+}
+
+impl<'a> Mul<&'a X25519PrivateKey> for X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn mul(self, rhs: &'a X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 * rhs.0)
+    }
+}
+
+impl<'a, 'b> Mul<&'b X25519PrivateKey> for &'a X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn mul(self, rhs: &'b X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 * rhs.0)
+    }
+}
+
+impl Add for X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn add(self, rhs: X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 + rhs.0)
+    }
+}
+
+impl<'a> Add<&'a X25519PrivateKey> for X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn add(self, rhs: &'a X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 + rhs.0)
+    }
+}
+
+impl<'a> Add<X25519PrivateKey> for &'a X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn add(self, rhs: X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 + rhs.0)
+    }
+}
+
+impl<'a, 'b> Add<&'b X25519PrivateKey> for &'a X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn add(self, rhs: &'b X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 + rhs.0)
+    }
+}
+
+impl Sub for X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn sub(self, rhs: X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 - rhs.0)
+    }
+}
+
+impl<'a> Sub<&'a X25519PrivateKey> for X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn sub(self, rhs: &'a X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 - rhs.0)
+    }
+}
+
+impl<'a> Sub<X25519PrivateKey> for &'a X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn sub(self, rhs: X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 - rhs.0)
+    }
+}
+
+impl<'a, 'b> Sub<&'b X25519PrivateKey> for &'a X25519PrivateKey {
+    type Output = X25519PrivateKey;
+
+    fn sub(self, rhs: &'b X25519PrivateKey) -> Self::Output {
+        X25519PrivateKey(self.0 - rhs.0)
+    }
+}
+
+impl Zeroize for X25519PrivateKey {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+impl Drop for X25519PrivateKey {
+    fn drop(&mut self) {
+        self.zeroize();
     }
 }
 
@@ -184,6 +281,30 @@ impl TryFrom<&str> for X25519PublicKey {
 impl Display for X25519PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", hex::encode(self.0.compress().to_bytes()))
+    }
+}
+
+impl Add for X25519PublicKey {
+    type Output = Self;
+
+    fn add(self, rhs: X25519PublicKey) -> Self::Output {
+        X25519PublicKey(self.0 + rhs.0)
+    }
+}
+
+impl<'a> Add<&'a X25519PublicKey> for X25519PublicKey {
+    type Output = X25519PublicKey;
+
+    fn add(self, rhs: &'a X25519PublicKey) -> Self::Output {
+        X25519PublicKey(self.0 + rhs.0)
+    }
+}
+
+impl<'a> Add<&'a X25519PublicKey> for &X25519PublicKey {
+    type Output = X25519PublicKey;
+
+    fn add(self, rhs: &'a X25519PublicKey) -> Self::Output {
+        X25519PublicKey(self.0 + rhs.0)
     }
 }
 
