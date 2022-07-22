@@ -1,5 +1,3 @@
-pub mod kem;
-
 use super::{AsymmetricCrypto, KeyPair};
 use cosmian_crypto_base_anssi::{
     entropy::CsRng,
@@ -203,7 +201,7 @@ impl AsymmetricCrypto for X25519Crypto {
         _: Option<&Self::KeyPairGenerationParameters>,
     ) -> Result<Self::KeyPair, CryptoBaseError> {
         Ok(X25519KeyPair::new(
-            &mut self.rng.lock().expect("a lock failed").deref_mut(),
+            self.rng.lock().expect("a lock failed").deref_mut(),
         ))
     }
 
