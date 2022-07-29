@@ -1,9 +1,10 @@
 use crate::{
     asymmetric::{ristretto::X25519Crypto, AsymmetricCrypto, KeyPair},
     hybrid_crypto::Kem,
+    CryptoBaseError,
 };
-use cosmian_crypto_base_anssi::{kdf, CryptoBaseError, KeyTrait};
-use rand_core::{CryptoRng, RngCore};
+use cosmian_crypto_core::{kdf, KeyTrait};
+use rand::{CryptoRng, RngCore};
 use std::convert::TryFrom;
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
@@ -62,7 +63,7 @@ impl Kem for X25519Crypto {
             + <Self::KeyPair as KeyPair>::PrivateKey::LENGTH];
         b[..<Self::KeyPair as KeyPair>::PublicKey::LENGTH].clone_from_slice(&shared_secret);
         b[<Self::KeyPair as KeyPair>::PublicKey::LENGTH..].clone_from_slice(encapsulation);
-        kdf::hkdf_256(&b, secret_key_length, HKDF_INFO)
+        kdf::hkdf_256(&b, secret_key_length, HKDF_INFO).map_err(CryptoBaseError::CryptoCoreError)
     }
 }
 
@@ -72,7 +73,7 @@ mod tests {
         asymmetric::{ristretto::X25519Crypto, KeyPair},
         hybrid_crypto::Kem,
     };
-    use cosmian_crypto_base_anssi::entropy::CsRng;
+    use cosmian_crypto_core::entropy::CsRng;
 
     #[test]
     fn test_kem() {

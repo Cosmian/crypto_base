@@ -1,7 +1,10 @@
 pub mod kem;
 
-use super::{AsymmetricCrypto, KeyPair};
-use cosmian_crypto_base_anssi::{
+use crate::{
+    asymmetric::{AsymmetricCrypto, KeyPair},
+    CryptoBaseError,
+};
+use cosmian_crypto_core::{
     entropy::CsRng,
     kdf::hkdf_256,
     symmetric_crypto::{
@@ -9,9 +12,9 @@ use cosmian_crypto_base_anssi::{
         nonce::NonceTrait,
         SymmetricCrypto,
     },
-    CryptoBaseError, KeyTrait,
+    CryptoCoreError, KeyTrait,
 };
-use rand_core::{CryptoRng, RngCore};
+use rand::{CryptoRng, RngCore};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Display,
@@ -19,7 +22,7 @@ use std::{
     sync::Mutex,
 };
 
-pub use cosmian_crypto_base_anssi::asymmetric::{X25519PrivateKey, X25519PublicKey};
+pub use cosmian_crypto_core::asymmetric_crypto::{X25519PrivateKey, X25519PublicKey};
 
 const HKDF_INFO: &[u8; 21] = b"ecies-ristretto-25519";
 
@@ -228,8 +231,8 @@ impl AsymmetricCrypto for X25519Crypto {
     ) -> Result<S::Key, CryptoBaseError> {
         let decrypted = self
             .decrypt(private_key, data)
-            .map_err(|err| CryptoBaseError::DecryptionError(err.to_string()))?;
-        S::Key::try_from_bytes(&decrypted)
+            .map_err(|err| CryptoCoreError::DecryptionError(err.to_string()))?;
+        S::Key::try_from_bytes(&decrypted).map_err(CryptoBaseError::CryptoCoreError)
     }
 
     /// A utility function to generate random bytes from an uniform distribution
@@ -264,7 +267,7 @@ impl AsymmetricCrypto for X25519Crypto {
         //prepare the result
         let mut result: Vec<u8> = Vec::with_capacity(data.len() + <Self>::ENCRYPTION_OVERHEAD);
         result.extend(ephemeral_keypair.public_key.to_bytes());
-        result.extend_from_slice(&nonce.0);
+        result.extend_from_slice(nonce.as_slice());
         result.extend(Aes256GcmCrypto::encrypt(&sym_key, data, &nonce, None)?);
         Ok(result)
     }
@@ -286,9 +289,10 @@ impl AsymmetricCrypto for X25519Crypto {
         data: &[u8],
     ) -> Result<Vec<u8>, CryptoBaseError> {
         if data.len() < <Self>::ENCRYPTION_OVERHEAD {
-            return Err(CryptoBaseError::InvalidSize(
+            return Err(CryptoCoreError::InvalidSize(
                 "decryption failed: message is too short".to_string(),
-            ));
+            ))
+            .map_err(CryptoBaseError::CryptoCoreError);
         }
         if data.len() == <Self>::ENCRYPTION_OVERHEAD {
             return Ok(vec![]);
@@ -308,6 +312,7 @@ impl AsymmetricCrypto for X25519Crypto {
             &nonce,
             None,
         )
+        .map_err(CryptoBaseError::CryptoCoreError)
     }
 }
 
@@ -316,7 +321,7 @@ mod test {
     use std::convert::TryFrom;
 
     use super::{AsymmetricCrypto, KeyPair, X25519Crypto, X25519PrivateKey, X25519PublicKey};
-    use cosmian_crypto_base_anssi::{symmetric_crypto::aes_256_gcm_pure, KeyTrait};
+    use cosmian_crypto_core::{symmetric_crypto::aes_256_gcm_pure, KeyTrait};
 
     #[test]
     fn test_generate_key_pair() {

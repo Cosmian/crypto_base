@@ -14,7 +14,30 @@ pub mod primes;
 #[cfg(all(not(target_arch = "wasm32"), not(windows), feature = "libsodium"))]
 pub mod sodium_bindings;
 
-pub use cosmian_crypto_base_anssi::entropy;
-pub use cosmian_crypto_base_anssi::kdf;
-pub use cosmian_crypto_base_anssi::CryptoBaseError;
-pub use cosmian_crypto_base_anssi::KeyTrait;
+use std::array::TryFromSliceError;
+
+pub use cosmian_crypto_core::entropy;
+pub use cosmian_crypto_core::kdf;
+use cosmian_crypto_core::CryptoCoreError;
+pub use cosmian_crypto_core::KeyTrait;
+
+use thiserror::Error;
+#[derive(Debug, Error, PartialEq)]
+pub enum CryptoBaseError {
+    #[error("{0}")]
+    CryptoCoreError(#[from] CryptoCoreError),
+    #[error("Failed to parse")]
+    HexParseError(#[from] hex::FromHexError),
+    #[error("Conversion failed: {0}")]
+    ConversionFailed(String),
+    #[error("Wrong size: {given} given should be {expected}")]
+    SizeError { given: usize, expected: usize },
+    #[error("Invalid size")]
+    InvalidSize(String),
+}
+
+impl From<TryFromSliceError> for CryptoBaseError {
+    fn from(e: TryFromSliceError) -> Self {
+        Self::ConversionFailed(e.to_string())
+    }
+}

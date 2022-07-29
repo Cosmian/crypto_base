@@ -13,9 +13,8 @@ name = "cosmian_crypto_base"
 path = "src/lib.rs"
 
 [dependencies]
-aes = "0.7"
+aes = "0.8"
 aes-gcm = "0.9"
-cosmian_fpe = "0.5.1"
 curve25519-dalek = "3.2"
 # specify the js feature for the WASM target
 getrandom = { version = "0.2", features = ["js"] }
@@ -33,7 +32,8 @@ sha2 = "0.10"
 thiserror = "1.0"
 tracing = "0.1"
 zeroize = "1.5.6"
-cosmian_crypto_base_anssi = { path = "anssi" }
+cosmian_crypto_core = "1.0"
+crypto-common = "0.1.6"
 
 [dev-dependencies]
 retry_panic = { git = "https://github.com/Cosmian/retry_panic" }

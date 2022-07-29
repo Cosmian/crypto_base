@@ -5,8 +5,8 @@ use crate::{
         crypto_aead_xchacha20poly1305_ietf_encrypt, sodium_init,
     },
     symmetric_crypto::{SymmetricCrypto, MIN_DATA_LENGTH},
-    CryptoBaseError,
 };
+use cosmian_crypto_core::{symmetric_crypto::nonce::NonceTrait, CryptoCoreError};
 use std::sync::Once;
 use std::vec::Vec;
 
@@ -16,8 +16,8 @@ pub const KEY_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_KEYBYTES as usi
 pub const NONCE_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_NPUBBYTES as usize;
 pub const MAC_LENGTH: usize = crypto_aead_xchacha20poly1305_ietf_ABYTES as usize;
 
-pub type Key = cosmian_crypto_base_anssi::symmetric_crypto::key::Key<KEY_LENGTH>;
-pub type Nonce = cosmian_crypto_base_anssi::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
+pub type Key = cosmian_crypto_core::symmetric_crypto::key::Key<KEY_LENGTH>;
+pub type Nonce = cosmian_crypto_core::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct XChacha20Crypto;
@@ -42,7 +42,7 @@ impl SymmetricCrypto for XChacha20Crypto {
         bytes: &[u8],
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, CryptoBaseError> {
+    ) -> Result<Vec<u8>, CryptoCoreError> {
         START.call_once(|| unsafe {
             sodium_init();
         });
@@ -51,7 +51,7 @@ impl SymmetricCrypto for XChacha20Crypto {
             return Ok(vec![]);
         }
         if bytes.len() < MAC_LENGTH + MIN_DATA_LENGTH {
-            return Err(CryptoBaseError::DecryptionError(
+            return Err(CryptoCoreError::DecryptionError(
                 "Not enough data for XChaCha20 decryption".to_string(),
             ));
         }
@@ -70,11 +70,11 @@ impl SymmetricCrypto for XChacha20Crypto {
                 bytes.len() as u64,
                 ad,
                 ad_len,
-                nonce.0.as_ref().as_ptr(),
-                key.0.as_ptr(),
+                nonce.as_slice().as_ptr(),
+                key.as_slice().as_ptr(),
             );
             if res != 0 {
-                return Err(CryptoBaseError::DecryptionError(
+                return Err(CryptoCoreError::DecryptionError(
                     "XChaCha20 decryption failed".to_string(),
                 ));
             }
@@ -87,7 +87,7 @@ impl SymmetricCrypto for XChacha20Crypto {
         bytes: &[u8],
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, CryptoBaseError> {
+    ) -> Result<Vec<u8>, CryptoCoreError> {
         START.call_once(|| unsafe {
             sodium_init();
         });
@@ -107,11 +107,11 @@ impl SymmetricCrypto for XChacha20Crypto {
                 ad,
                 ad_len,
                 std::ptr::null(),
-                nonce.0.as_ref().as_ptr(),
-                key.0.as_ptr(),
+                nonce.as_slice().as_ptr(),
+                key.as_slice().as_ptr(),
             );
             if res != 0 {
-                return Err(CryptoBaseError::EncryptionError(
+                return Err(CryptoCoreError::EncryptionError(
                     "XChaCha20 encryption failed".to_string(),
                 ));
             };
@@ -132,9 +132,9 @@ mod tests {
     fn test_key() {
         let mut cs_rng = CsRng::new();
         let key_1 = Key::new(&mut cs_rng);
-        assert_eq!(KEY_LENGTH, key_1.0.len());
+        assert_eq!(KEY_LENGTH, key_1.as_slice().len());
         let key_2 = Key::new(&mut cs_rng);
-        assert_eq!(KEY_LENGTH, key_2.0.len());
+        assert_eq!(KEY_LENGTH, key_2.as_slice().len());
         assert_ne!(key_1, key_2);
     }
 
@@ -142,9 +142,9 @@ mod tests {
     fn test_nonce() {
         let mut cs_rng = CsRng::new();
         let nonce_1 = Nonce::new(&mut cs_rng);
-        assert_eq!(NONCE_LENGTH, nonce_1.0.len());
+        assert_eq!(NONCE_LENGTH, nonce_1.as_slice().len());
         let nonce_2 = Nonce::new(&mut cs_rng);
-        assert_eq!(NONCE_LENGTH, nonce_2.0.len());
+        assert_eq!(NONCE_LENGTH, nonce_2.as_slice().len());
         assert_ne!(nonce_1, nonce_2);
     }
 

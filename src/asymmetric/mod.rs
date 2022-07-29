@@ -1,4 +1,5 @@
-use cosmian_crypto_base_anssi::{symmetric_crypto::SymmetricCrypto, CryptoBaseError, KeyTrait};
+use crate::CryptoBaseError;
+use cosmian_crypto_core::{symmetric_crypto::SymmetricCrypto, KeyTrait};
 use std::vec::Vec;
 
 pub mod ristretto;

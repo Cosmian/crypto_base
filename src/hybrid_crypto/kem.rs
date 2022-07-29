@@ -1,6 +1,6 @@
 use crate::{asymmetric::KeyPair, CryptoBaseError};
-use cosmian_crypto_base_anssi::KeyTrait;
-use rand_core::{CryptoRng, RngCore};
+use cosmian_crypto_core::KeyTrait;
+use rand::{CryptoRng, RngCore};
 
 /// Key Encapsulation Method (KEM). It is used to generate a secret key along
 /// with its encapsulation. This secret key is then typically used in a DEM

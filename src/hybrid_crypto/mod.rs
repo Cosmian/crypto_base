@@ -1,9 +1,12 @@
-use crate::asymmetric::{ristretto::X25519Crypto, KeyPair};
-use cosmian_crypto_base_anssi::{
-    symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, Dem},
-    CryptoBaseError, KeyTrait,
+use crate::{
+    asymmetric::{ristretto::X25519Crypto, KeyPair},
+    CryptoBaseError,
 };
-use rand_core::{CryptoRng, RngCore};
+use cosmian_crypto_core::{
+    symmetric_crypto::{aes_256_gcm_pure::Aes256GcmCrypto, Dem},
+    KeyTrait,
+};
+use rand::{CryptoRng, RngCore};
 
 mod kem;
 
@@ -24,7 +27,7 @@ pub trait HybridCrypto<T: Kem, U: Dem> {
         let mut symmetric_encapsulation = U::encaps(rng, &secret_key, additional_data, message)?;
         // allocate the correct number of bytes for the ciphertext
         let mut res =
-            Vec::with_capacity(T::ENCAPSULATION_SIZE + U::ENCRYPTION_OVERHEAD + message.len());
+            Vec::with_capacity(T::ENCAPSULATION_SIZE + U::ENCAPSULATION_OVERHEAD + message.len());
         res.append(&mut asymmetric_encapsulation);
         res.append(&mut symmetric_encapsulation);
         Ok(res)
@@ -48,6 +51,7 @@ pub trait HybridCrypto<T: Kem, U: Dem> {
             additional_data,
             &ciphertext[T::ENCAPSULATION_SIZE..],
         )
+        .map_err(CryptoBaseError::CryptoCoreError)
     }
 }
 
