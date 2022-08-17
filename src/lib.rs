@@ -16,10 +16,11 @@ pub mod sodium_bindings;
 
 use std::array::TryFromSliceError;
 
-pub use cosmian_crypto_core::entropy;
-pub use cosmian_crypto_core::kdf;
-use cosmian_crypto_core::CryptoCoreError;
-pub use cosmian_crypto_core::KeyTrait;
+pub use cosmian_crypto_core::{
+    entropy, kdf,
+    reexport::generic_array::{typenum, ArrayLength, GenericArray},
+    CryptoCoreError, KeyTrait,
+};
 
 use thiserror::Error;
 #[derive(Debug, Error, PartialEq)]

@@ -24,7 +24,6 @@ itertools = "0.10"
 num-bigint = { version = "0.4", features = ["rand", "serde"] }
 num-traits = "0.2"
 rand = "0.8"
-rand_core = { version = "0.5", features = ["getrandom"] }
 rand_distr = "0.4"
 rand_hc = "0.3"
 serde = { version = "1.0", features = ["derive"] }
@@ -32,7 +31,7 @@ sha2 = "0.10"
 thiserror = "1.0"
 tracing = "0.1"
 zeroize = "1.5.6"
-cosmian_crypto_core = "1.0"
+cosmian_crypto_core = { git = "https://github.com/Cosmian/crypto_core.git", branch = "features/use_generic_arrays" }
 crypto-common = "0.1.6"
 
 [dev-dependencies]
@@ -46,4 +45,4 @@ libsodium = []
 cupid = "0.6"
 
 [target.'cfg(all(not(target_arch = "wasm32"), not(windows)))'.build-dependencies]
-bindgen = "0.59"
+bindgen = "0.60"

@@ -1,5 +1,5 @@
 use crate::{asymmetric::KeyPair, CryptoBaseError};
-use cosmian_crypto_core::KeyTrait;
+use cosmian_crypto_core::reexport::generic_array::{ArrayLength, GenericArray};
 use rand::{CryptoRng, RngCore};
 
 /// Key Encapsulation Method (KEM). It is used to generate a secret key along
@@ -7,37 +7,43 @@ use rand::{CryptoRng, RngCore};
 /// scheme.
 ///
 /// TODO: should the KDF used be specified here?
-pub trait Kem {
+pub trait Kem<SharedSecretLength: ArrayLength<u8>> {
     /// Asymmetric key pair
     type KeyPair: KeyPair;
 
     /// Number of bytes of the encapsulation
-    const ENCAPSULATION_SIZE: usize = <Self::KeyPair as KeyPair>::PublicKey::LENGTH;
+    type EncapsulationSize: ArrayLength<u8>;
 
     /// Describe the scheme in plaintext
     fn description() -> String;
 
     /// Generate an asymmetric key pair
+    ///
+    /// - `rng` : random number generator
     fn key_gen<R: RngCore + CryptoRng>(rng: &mut R) -> Self::KeyPair;
 
     /// Return `(K, E)` the secret key and its encapsulation.
     ///
+    /// - `rng` : random number generator
     /// - `pk`  : public key
-    /// - `secret_key_length`: the size in bytes of the generated secret key
-    fn encaps<R: RngCore + CryptoRng>(
+    #[allow(clippy::type_complexity)]
+    fn encap<R: RngCore + CryptoRng>(
         rng: &mut R,
         pk: &<Self::KeyPair as KeyPair>::PublicKey,
-        secret_key_length: usize,
-    ) -> Result<(Vec<u8>, Vec<u8>), CryptoBaseError>;
+    ) -> Result<
+        (
+            GenericArray<u8, SharedSecretLength>,
+            GenericArray<u8, Self::EncapsulationSize>,
+        ),
+        CryptoBaseError,
+    >;
 
     /// Generate the secret key from the given encapsulation and private key.
     ///
     /// - `sk`  : private key
     /// - `E`   : encapsulation
-    /// - `secret_key_length`: the size in bytes of the encapsulated secret key
-    fn decaps(
+    fn decap(
         sk: &<Self::KeyPair as KeyPair>::PrivateKey,
-        encapsulation: &[u8],
-        secret_key_length: usize,
-    ) -> Result<Vec<u8>, CryptoBaseError>;
+        encapsulation: GenericArray<u8, Self::EncapsulationSize>,
+    ) -> Result<GenericArray<u8, SharedSecretLength>, CryptoBaseError>;
 }
