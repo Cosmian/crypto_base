@@ -3,13 +3,13 @@
 // Kiayiaset al. [KPTZ13](https://people.csail.mit.edu/stavrosp/papers/ccs2013/CCS13_DPRF.pdf) and is called best range cover (BRC)
 // This is the hardware independent version
 
-use std::{cmp, convert::TryFrom};
-
 use crate::CryptoBaseError;
 use aes::{
-    cipher::{generic_array::GenericArray, BlockEncrypt, NewBlockCipher},
+    cipher::{generic_array::GenericArray, BlockEncrypt},
     Aes256,
 };
+use crypto_common::KeyInit;
+use std::{cmp, convert::TryFrom};
 
 /// Tests whether the AES native interface is available on this machine
 ///
@@ -58,13 +58,15 @@ pub struct Trapdoor {
 }
 
 impl Trapdoor {
+    /// Serialize the given trapdoor.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         self.clone().into()
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
-        Self::try_from(bytes).map_err(CryptoBaseError::ConversionError)
+    /// Attempts to convert the given bytes into a trapdoor.
+    pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, CryptoBaseError> {
+        Self::try_from(bytes)
     }
 }
 
@@ -83,7 +85,7 @@ impl From<Trapdoor> for Vec<u8> {
 
 /// De-serialization of Trapdoor from bytes
 impl TryFrom<Vec<u8>> for Trapdoor {
-    type Error = String;
+    type Error = CryptoBaseError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         Self::try_from(value.as_slice())
@@ -92,11 +94,13 @@ impl TryFrom<Vec<u8>> for Trapdoor {
 
 /// De-serialization of Trapdoor from bytes
 impl TryFrom<&[u8]> for Trapdoor {
-    type Error = String;
+    type Error = CryptoBaseError;
 
     fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
         if b.len() < 4 {
-            return Err("Invalid serialized trapdoor".to_string());
+            return Err(CryptoBaseError::ConversionFailed(
+                "Invalid serialized trapdoor".to_string(),
+            ));
         }
         let mut l_a: [u8; 4] = [0, 0, 0, 0];
         l_a.copy_from_slice(&b[0..4]);
@@ -890,7 +894,7 @@ pub(crate) mod tests {
         let trapdoor = Trapdoor { nodes };
         let b: Vec<u8> = trapdoor.to_bytes();
         let recovered: Trapdoor =
-            Trapdoor::from_bytes(b.as_slice()).expect("failed trapdoor from bytes");
+            Trapdoor::try_from_bytes(b.as_slice()).expect("failed trapdoor from bytes");
         assert_eq!(num_nodes, recovered.nodes.len());
         for i in 0..num_nodes {
             assert_eq!(&(trapdoor.nodes[i]).k, &recovered.nodes[i].k);
@@ -923,7 +927,7 @@ pub(crate) mod tests {
                 let bytes = trapdoor.to_bytes();
                 nanos_ser += now.elapsed().as_nanos();
                 let now = Instant::now();
-                Trapdoor::from_bytes(&bytes).expect("De-serialization should have worked");
+                Trapdoor::try_from_bytes(&bytes).expect("De-serialization should have worked");
                 nanos_des += now.elapsed().as_nanos();
             }
             debug!(

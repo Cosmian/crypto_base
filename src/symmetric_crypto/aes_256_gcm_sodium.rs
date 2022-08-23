@@ -3,28 +3,33 @@
 
 use crate::{
     sodium_bindings::{
-        crypto_aead_aes256gcm_ABYTES, crypto_aead_aes256gcm_KEYBYTES,
-        crypto_aead_aes256gcm_NPUBBYTES, crypto_aead_aes256gcm_decrypt,
-        crypto_aead_aes256gcm_decrypt_detached, crypto_aead_aes256gcm_encrypt,
-        crypto_aead_aes256gcm_encrypt_detached, crypto_aead_aes256gcm_is_available,
-        randombytes_buf, sodium_increment, sodium_init,
+        crypto_aead_aes256gcm_ABYTES, crypto_aead_aes256gcm_NPUBBYTES,
+        crypto_aead_aes256gcm_decrypt, crypto_aead_aes256gcm_decrypt_detached,
+        crypto_aead_aes256gcm_encrypt, crypto_aead_aes256gcm_encrypt_detached,
+        crypto_aead_aes256gcm_is_available, randombytes_buf, sodium_increment, sodium_init,
     },
     symmetric_crypto::{SymmetricCrypto, MIN_DATA_LENGTH},
-    CryptoBaseError,
+};
+use aes::cipher::Unsigned;
+use cosmian_crypto_core::{
+    reexport::generic_array::{typenum::U32, GenericArray},
+    symmetric_crypto::nonce::NonceTrait,
+    CryptoCoreError,
 };
 
-pub const KEY_LENGTH: usize = crypto_aead_aes256gcm_KEYBYTES as usize;
+/// AES256 uses 32-bytes keys
+type KeyLength = U32;
 pub const NONCE_LENGTH: usize = crypto_aead_aes256gcm_NPUBBYTES as usize;
 pub const MAC_LENGTH: usize = crypto_aead_aes256gcm_ABYTES as usize;
 
-pub type Key = crate::symmetric_crypto::key::Key<KEY_LENGTH>;
-pub type Nonce = crate::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
+pub type Key = cosmian_crypto_core::symmetric_crypto::key::Key<KeyLength>;
+pub type Nonce = cosmian_crypto_core::symmetric_crypto::nonce::Nonce<NONCE_LENGTH>;
 
-pub fn init() -> Result<(), CryptoBaseError> {
+pub fn init() -> Result<(), CryptoCoreError> {
     unsafe {
         sodium_init();
         if crypto_aead_aes256gcm_is_available() != 1 {
-            return Err(CryptoBaseError::HardwareCapability(
+            return Err(CryptoCoreError::HardwareCapability(
                 "This CPU does not support the AES256-GCM implementation".to_string(),
             ));
         }
@@ -35,7 +40,7 @@ pub fn init() -> Result<(), CryptoBaseError> {
 /// Generate a 256 bit symmetric key appropriate for use with AES
 #[must_use]
 pub fn generate_key() -> Key {
-    let mut bytes = [0_u8; KEY_LENGTH];
+    let mut bytes = GenericArray::<u8, KeyLength>::default();
     unsafe {
         randombytes_buf(
             bytes.as_mut_ptr().cast::<std::ffi::c_void>(),
@@ -61,17 +66,16 @@ pub fn generate_nonce() -> Nonce {
 /// Increment a nonce with the given value
 ///
 /// a nonce  should never be re-used with the same key
-#[must_use]
-pub fn increment_nonce(nonce: &Nonce, add_value: usize) -> Nonce {
-    let mut copy = nonce.clone();
+pub fn increment_nonce(nonce: &Nonce, add_value: usize) -> Result<Nonce, CryptoCoreError> {
+    let mut nonce: Vec<u8> = nonce.as_slice().to_owned();
     unsafe {
-        let ptr = copy.0.as_mut_ptr();
-        let len = copy.0.len() as u64;
+        let ptr = nonce.as_mut_ptr();
+        let len = nonce.len() as u64;
         for _ in 0..add_value {
             sodium_increment(ptr, len);
         }
     }
-    copy
+    Nonce::try_from(nonce)
 }
 
 /// Generate cryptographically secure (pseudo) random bytes of the given length
@@ -100,7 +104,7 @@ pub fn encrypt_combined(
     bytes: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> Result<Vec<u8>, CryptoBaseError> {
+) -> Result<Vec<u8>, CryptoCoreError> {
     let cipher_length = bytes.len() + MAC_LENGTH;
     let mut result = vec![0; cipher_length];
     unsafe {
@@ -116,12 +120,12 @@ pub fn encrypt_combined(
             ad,
             ad_len,
             std::ptr::null(),
-            nonce.0.as_ptr(),
-            key.0.as_ptr(),
+            nonce.as_slice().as_ptr(),
+            key.as_slice().as_ptr(),
         );
 
         if ret != 0 {
-            return Err(CryptoBaseError::EncryptionError(
+            return Err(CryptoCoreError::EncryptionError(
                 "Combined encryption failed".to_string(),
             ));
         }
@@ -143,7 +147,7 @@ pub fn encrypt_detached(
     bytes: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> Result<(Vec<u8>, Vec<u8>), CryptoBaseError> {
+) -> Result<(Vec<u8>, Vec<u8>), CryptoCoreError> {
     let cipher_length = bytes.len();
     let mut result = vec![0; cipher_length];
     let mut mac = vec![0; MAC_LENGTH];
@@ -162,18 +166,18 @@ pub fn encrypt_detached(
             ad,
             ad_len,
             std::ptr::null(),
-            nonce.0.as_ptr(),
-            key.0.as_ptr(),
+            nonce.as_slice().as_ptr(),
+            key.as_slice().as_ptr(),
         );
 
         if ret != 0 {
-            return Err(CryptoBaseError::EncryptionError(
+            return Err(CryptoCoreError::EncryptionError(
                 "Detached encryption failed".to_string(),
             ));
         }
 
         if mac_len != MAC_LENGTH as u64 {
-            return Err(CryptoBaseError::InvalidSize(format!(
+            return Err(CryptoCoreError::InvalidSize(format!(
                 "Invalid MAC length: {mac_len}. Expected: {MAC_LENGTH}"
             )));
         }
@@ -192,12 +196,12 @@ pub fn decrypt_combined(
     bytes: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> Result<Vec<u8>, CryptoBaseError> {
+) -> Result<Vec<u8>, CryptoCoreError> {
     if bytes.is_empty() {
         return Ok(vec![]);
     }
     if bytes.len() <= MAC_LENGTH {
-        return Err(CryptoBaseError::InvalidSize(
+        return Err(CryptoCoreError::InvalidSize(
             "Not enough data for combined decryption".to_string(),
         ));
     }
@@ -216,12 +220,12 @@ pub fn decrypt_combined(
             bytes.len() as u64,
             ad,
             ad_len,
-            nonce.0.as_ptr(),
-            key.0.as_ptr(),
+            nonce.as_slice().as_ptr(),
+            key.as_slice().as_ptr(),
         );
 
         if ret != 0 {
-            return Err(CryptoBaseError::DecryptionError(
+            return Err(CryptoCoreError::DecryptionError(
                 "Combined decryption failed".to_string(),
             ));
         }
@@ -242,12 +246,12 @@ pub fn decrypt_detached(
     mac: &[u8],
     nonce: &Nonce,
     additional_data: Option<&[u8]>,
-) -> Result<Vec<u8>, CryptoBaseError> {
+) -> Result<Vec<u8>, CryptoCoreError> {
     if bytes.is_empty() {
         return Ok(vec![]);
     }
     if bytes.len() <= MAC_LENGTH {
-        return Err(CryptoBaseError::InvalidSize(
+        return Err(CryptoCoreError::InvalidSize(
             "Not enough data for detached decryption".to_string(),
         ));
     }
@@ -266,12 +270,12 @@ pub fn decrypt_detached(
             mac.as_ptr(),
             ad,
             ad_len,
-            nonce.0.as_ptr(),
-            key.0.as_ptr(),
+            nonce.as_slice().as_ptr(),
+            key.as_slice().as_ptr(),
         );
 
         if ret != 0 {
-            return Err(CryptoBaseError::DecryptionError(
+            return Err(CryptoCoreError::DecryptionError(
                 "Detached decryption failed".to_string(),
             ));
         }
@@ -291,7 +295,7 @@ impl SymmetricCrypto for Aes256GcmCrypto {
     fn description() -> String {
         format!(
             "AES 256 GCM libsodium (key bits: {}, nonce bits: {}, mac bits: {})",
-            KEY_LENGTH * 8,
+            KeyLength::to_usize() * 8,
             NONCE_LENGTH * 8,
             MAC_LENGTH * 8
         )
@@ -302,7 +306,7 @@ impl SymmetricCrypto for Aes256GcmCrypto {
         bytes: &[u8],
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, CryptoBaseError> {
+    ) -> Result<Vec<u8>, CryptoCoreError> {
         let (ad, ad_len) = match additional_data {
             Some(b) => (b.as_ptr(), b.len() as u64),
             None => (std::ptr::null(), 0_u64),
@@ -318,11 +322,11 @@ impl SymmetricCrypto for Aes256GcmCrypto {
                 ad,
                 ad_len,
                 std::ptr::null(),
-                nonce.0.as_ref().as_ptr(),
-                key.0.as_ptr(),
+                nonce.as_slice().as_ptr(),
+                key.as_slice().as_ptr(),
             );
             if ret != 0 {
-                return Err(CryptoBaseError::EncryptionError(
+                return Err(CryptoCoreError::EncryptionError(
                     "AEAD AES256 GCM encryption failed".to_string(),
                 ));
             };
@@ -335,12 +339,12 @@ impl SymmetricCrypto for Aes256GcmCrypto {
         bytes: &[u8],
         nonce: &Nonce,
         additional_data: Option<&[u8]>,
-    ) -> Result<Vec<u8>, CryptoBaseError> {
+    ) -> Result<Vec<u8>, CryptoCoreError> {
         if bytes.is_empty() {
             return Ok(vec![]);
         }
         if bytes.len() < MAC_LENGTH + MIN_DATA_LENGTH {
-            return Err(CryptoBaseError::DecryptionError(
+            return Err(CryptoCoreError::DecryptionError(
                 "Not enough data for AEAD AES256 GCM decryption".to_string(),
             ));
         }
@@ -359,11 +363,11 @@ impl SymmetricCrypto for Aes256GcmCrypto {
                 bytes.len() as u64,
                 ad,
                 ad_len,
-                nonce.0.as_ref().as_ptr(),
-                key.0.as_ptr(),
+                nonce.as_slice().as_ptr(),
+                key.as_slice().as_ptr(),
             );
             if ret != 0 {
-                return Err(CryptoBaseError::DecryptionError(
+                return Err(CryptoCoreError::DecryptionError(
                     "AEAD AES256 GCM decryption failed".to_string(),
                 ));
             }
@@ -375,13 +379,15 @@ impl SymmetricCrypto for Aes256GcmCrypto {
 #[cfg(test)]
 mod tests {
 
+    use cosmian_crypto_core::reexport::generic_array::typenum::{Unsigned, U10000, U56, U8192};
+
     use crate::{
         entropy::CsRng,
         symmetric_crypto::{
             aes_256_gcm_sodium::{
                 decrypt_combined, decrypt_detached, encrypt_combined, encrypt_detached,
                 generate_key, generate_nonce, generate_random_bytes, increment_nonce,
-                Aes256GcmCrypto, Key, Nonce, KEY_LENGTH, MAC_LENGTH, NONCE_LENGTH,
+                Aes256GcmCrypto, Key, KeyLength, Nonce, MAC_LENGTH, NONCE_LENGTH,
             },
             nonce::NonceTrait,
             SymmetricCrypto,
@@ -392,18 +398,18 @@ mod tests {
     #[test]
     fn test_key() {
         let key_1 = generate_key();
-        assert_eq!(KEY_LENGTH, key_1.0.len());
+        assert_eq!(KeyLength::to_usize(), key_1.as_slice().len());
         let key_2 = generate_key();
-        assert_eq!(KEY_LENGTH, key_2.0.len());
+        assert_eq!(KeyLength::to_usize(), key_2.as_slice().len());
         assert_ne!(key_1, key_2);
     }
 
     #[test]
     fn test_nonce() {
         let nonce_1 = generate_nonce();
-        assert_eq!(NONCE_LENGTH, nonce_1.0.len());
+        assert_eq!(NONCE_LENGTH, nonce_1.as_slice().len());
         let nonce_2 = generate_nonce();
-        assert_eq!(NONCE_LENGTH, nonce_2.0.len());
+        assert_eq!(NONCE_LENGTH, nonce_2.as_slice().len());
         assert_ne!(nonce_1, nonce_2);
     }
 
@@ -421,7 +427,7 @@ mod tests {
     fn test_increment_nonce() {
         let mut nonce: Nonce = Nonce::from([0_u8; NONCE_LENGTH]);
         let inc = 1_usize << 10;
-        nonce = increment_nonce(&nonce, inc);
+        nonce = increment_nonce(&nonce, inc).unwrap();
         assert_eq!("000400000000000000000000", format!("{}", nonce));
     }
 
@@ -481,25 +487,25 @@ mod tests {
     fn test_encryption_decryption_aes256gcm() {
         let mut cs_rng = CsRng::new();
         let key = Key::new(&mut cs_rng);
-        let bytes = cs_rng.generate_random_bytes(8192);
-        let ad = cs_rng.generate_random_bytes(56);
+        let bytes = cs_rng.generate_random_bytes::<U8192>();
+        let ad = cs_rng.generate_random_bytes::<U56>();
         let iv = Nonce::new(&mut cs_rng);
 
         let encrypted_result = Aes256GcmCrypto::encrypt(&key, &bytes, &iv, Some(&ad)).unwrap();
-        assert_ne!(encrypted_result, bytes);
+        assert_ne!(encrypted_result, bytes.to_vec());
         assert_eq!(bytes.len() + MAC_LENGTH, encrypted_result.len());
         // decrypt
         let recovered =
             Aes256GcmCrypto::decrypt(&key, encrypted_result.as_slice(), &iv, Some(&ad)).unwrap();
-        assert_eq!(bytes, recovered);
+        assert_eq!(bytes.to_vec(), recovered);
     }
 
     #[test]
     fn test_encryption_decryption_aes256gcm_chunks() {
         let mut cs_rng = CsRng::new();
         let key = Key::new(&mut cs_rng);
-        let bytes = cs_rng.generate_random_bytes(10000);
-        let ad = cs_rng.generate_random_bytes(56);
+        let bytes = cs_rng.generate_random_bytes::<U10000>();
+        let ad = cs_rng.generate_random_bytes::<U56>();
         let iv = Nonce::new(&mut cs_rng);
 
         let mut encrypted_result: Vec<u8> = vec![];
@@ -514,7 +520,7 @@ mod tests {
         encrypted_result.extend_from_slice(
             &Aes256GcmCrypto::encrypt(&key, &bytes[8192..], &next_nonce, Some(&ad)).unwrap(),
         );
-        assert_ne!(encrypted_result, bytes);
+        assert_ne!(encrypted_result, bytes.to_vec());
         assert_eq!(bytes.len() + 3 * MAC_LENGTH, encrypted_result.len());
         // decrypt
         let mut recovered: Vec<u8> = vec![];
@@ -544,6 +550,6 @@ mod tests {
             )
             .unwrap(),
         );
-        assert_eq!(bytes, recovered);
+        assert_eq!(bytes.to_vec(), recovered);
     }
 }

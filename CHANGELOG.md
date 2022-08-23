@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [2.1.1] - 2022-07-19
+### Added
+### Changed
+- create a subcrate to prepare ANSSI validation
+### Fixed
+### Removed
+---
+
+---
 ## [2.1.0] - 2022-07-19
 ### Added
 - Add operations for `X25519PrivateKey` and `X25519PublicKey`

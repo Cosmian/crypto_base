@@ -23,7 +23,7 @@ It also exposes a few traits, `SymmetricCrypto` and `AsymmetricCrypto` (aka Publ
 ## Building
 
 Some of the encryption schemes (xChaCha20 in particular) use [libsodium](https://github.com/jedisct1/libsodium).
-These schemes are not built by default, use `--feature libsodium` to build them.
+These schemes are not built by default, use `--feature libsodium` to build them. The `libsodium-dev` library should be installed on your system.
 
 The default feature schemes can all be built to a WASM target.
 

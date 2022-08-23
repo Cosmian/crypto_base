@@ -1,11 +1,11 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-use aes::{
-    cipher::generic_array::GenericArray, Aes128, Aes192, Aes256, BlockDecrypt, BlockEncrypt,
-    NewBlockCipher,
-};
-
 use crate::CryptoBaseError;
+use aes::{
+    cipher::{generic_array::GenericArray, BlockDecrypt, BlockEncrypt},
+    Aes128, Aes192, Aes256,
+};
+use crypto_common::KeyInit;
 
 const DEFAULT_IV: u64 = 0xa6a6_a6a6_a6a6_a6a6;
 const DEFAULT_RFC5649_CONST: u32 = 0xA659_59A6_u32;
