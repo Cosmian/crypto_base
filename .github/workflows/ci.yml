@@ -33,6 +33,14 @@ jobs:
         with:
           command: clippy
           args: --all-targets --all-features -- -D warnings
+      - name: install cargoaudit
+        run: cargo install cargo-audit
+        if: success() && !env.SKIP_JOB
+      - name: Audit code
+        uses: actions-rs/cargo@v1
+        with:
+          command: audit
+          args: -D warnings
 
   test:
     name: Test on ${{ matrix.os }}

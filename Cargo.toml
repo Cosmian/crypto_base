@@ -31,7 +31,7 @@ sha2 = "0.10"
 thiserror = "1.0"
 tracing = "0.1"
 zeroize = "1.5.6"
-cosmian_crypto_core = { git = "https://github.com/Cosmian/crypto_core.git", branch = "features/use_generic_arrays" }
+cosmian_crypto_core = "2.0"
 crypto-common = "0.1.6"
 
 [dev-dependencies]
