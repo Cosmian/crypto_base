@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [2.1.2] - 2022-09-06
+### Added
+### Changed
+### Fixed
+- `InvalidSize` error now prints the correct error message
+### Removed
+---
+
+---
 ## [2.1.1] - 2022-07-19
 ### Added
 ### Changed
