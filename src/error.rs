@@ -12,7 +12,7 @@ pub enum CryptoBaseError {
     ConversionFailed(String),
     #[error("Wrong size: {given} given should be {expected}")]
     SizeError { given: usize, expected: usize },
-    #[error("Invalid size")]
+    #[error("Invalid size: {0}")]
     InvalidSize(String),
 }
 
